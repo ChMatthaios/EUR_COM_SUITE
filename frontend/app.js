@@ -49,23 +49,18 @@
     function setStatus(msg) { elStatus.textContent = msg || ""; }
 
     function getToken() { return localStorage.getItem("ecs_token"); }
-
     function getStoredUser() {
-        try { return JSON.parse(localStorage.getItem("ecs_user") || "null"); }
-        catch { return null; }
+        try { return JSON.parse(localStorage.getItem("ecs_user") || "null"); } catch { return null; }
     }
-
     function logoutToLogin() {
         localStorage.removeItem("ecs_token");
         localStorage.removeItem("ecs_user");
         window.location.href = "login.html";
     }
-
     function authHeaders(extra = {}) {
         const t = getToken();
         return t ? { ...extra, Authorization: `Bearer ${t}` } : extra;
     }
-
     async function apiFetch(path, options = {}) {
         const res = await fetch(`${API_BASE}${path}`, {
             ...options,
@@ -86,17 +81,6 @@
     function toggleTheme() {
         const cur = document.documentElement.getAttribute("data-theme") || "light";
         setTheme(cur === "light" ? "dark" : "light");
-    }
-
-    function setLabels(report) {
-        elCustomerIdLabel.textContent = report?.customerId ?? "-";
-        elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
-        elRunIdLabel.textContent = report?.runId ?? "-";
-    }
-
-    function clearRender() {
-        elNarrative.innerHTML = "";
-        elRaw.textContent = "";
     }
 
     function safeJsonParse(maybeJson) {
@@ -120,9 +104,7 @@
                 pad += indent;
                 return out;
             }).join("\n");
-        } catch {
-            return String(xml ?? "");
-        }
+        } catch { return String(xml ?? ""); }
     }
 
     function extractReport(row) {
@@ -133,6 +115,17 @@
             json: row?.json_doc ?? "",
             xml: row?.xml_doc ?? "",
         };
+    }
+
+    function setLabels(report) {
+        elCustomerIdLabel.textContent = report?.customerId ?? "-";
+        elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
+        elRunIdLabel.textContent = report?.runId ?? "-";
+    }
+
+    function clearRender() {
+        elNarrative.innerHTML = "";
+        elRaw.textContent = "";
     }
 
     // -----------------------------
@@ -183,133 +176,251 @@
     }
 
     // -----------------------------
-    // Narrative renderer (JSON-style)
+    // ✅ Data cleanup for rendering
     // -----------------------------
-    function el(tag, className, text) {
+    const NOISY_KEYS = new Set(["payload", "item", "#text"]);
+
+    function isScalar(v) {
+        return v === null || v === undefined || typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+    }
+
+    function cleanKey(k) {
+        return String(k || "")
+            .replace(/^@/, "")          // remove XML attribute prefix
+            .replace(/[_\-]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function normalizeObject(obj) {
+        // removes noisy wrapper keys like payload/item, and flattens them if possible
+        if (!obj || typeof obj !== "object") return obj;
+
+        if (Array.isArray(obj)) return obj.map(normalizeObject);
+
+        // If object is like { payload: {...} } -> unwrap payload
+        if (Object.keys(obj).length === 1) {
+            const onlyKey = Object.keys(obj)[0];
+            if (NOISY_KEYS.has(onlyKey)) return normalizeObject(obj[onlyKey]);
+        }
+
+        const out = {};
+        for (const [k, v] of Object.entries(obj)) {
+            if (NOISY_KEYS.has(k)) {
+                const nv = normalizeObject(v);
+                // merge if object
+                if (nv && typeof nv === "object" && !Array.isArray(nv)) {
+                    for (const [mk, mv] of Object.entries(nv)) out[mk] = mv;
+                } else {
+                    out[k] = nv;
+                }
+                continue;
+            }
+            out[k] = normalizeObject(v);
+        }
+        return out;
+    }
+
+    // -----------------------------
+    // ✅ JSON/XML narrative renderer (tables)
+    // -----------------------------
+    function h(tag, className, text) {
         const n = document.createElement(tag);
         if (className) n.className = className;
         if (text != null) n.textContent = String(text);
         return n;
     }
 
-    function paragraph(k, v) {
-        const p = el("p", "p");
-        const key = el("span", "k", `${k}: `);
-        const val = document.createElement("span");
-        val.textContent = String(v ?? "");
-        p.appendChild(key);
-        p.appendChild(val);
-        return p;
-    }
-
-    function objectToOneLine(obj) {
-        if (!obj || typeof obj !== "object") return String(obj ?? "");
-        const parts = [];
+    function renderKVGrid(obj) {
+        const wrap = h("div", "kvgrid");
         for (const [k, v] of Object.entries(obj)) {
-            if (v === null || v === undefined) continue;
-            if (typeof v === "object") continue;
-            parts.push(`${k}=${v}`);
-            if (parts.length >= 10) break;
+            const kk = h("div", "kkey", cleanKey(k));
+            const vv = h("div", "kval", isScalar(v) ? String(v) : JSON.stringify(v));
+            wrap.appendChild(kk);
+            wrap.appendChild(vv);
         }
-        return parts.length ? parts.join(", ") : "(details)";
+        return wrap;
     }
 
-    function renderArrayAsParagraphs(parent, key, arr) {
-        if (!Array.isArray(arr) || arr.length === 0) {
-            parent.appendChild(paragraph(key, "No records available."));
-            return;
-        }
-        parent.appendChild(paragraph(key, `Total records: ${arr.length}`));
+    function tableFromArray(arr) {
+        // arr: array of objects (or scalars)
+        const wrap = h("div", "table-wrap");
 
-        const ul = el("ul", "list");
-        const max = 30;
-        arr.slice(0, max).forEach((item) => {
-            const li = document.createElement("li");
-            li.textContent = (item && typeof item === "object") ? objectToOneLine(item) : String(item);
-            ul.appendChild(li);
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const tbody = document.createElement("tbody");
+
+        // If scalar array => 1 column table
+        if (arr.length && isScalar(arr[0])) {
+            const trh = document.createElement("tr");
+            const th = document.createElement("th");
+            th.textContent = "Value";
+            trh.appendChild(th);
+            thead.appendChild(trh);
+
+            arr.forEach((x) => {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.textContent = String(x);
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            wrap.appendChild(table);
+            return wrap;
+        }
+
+        // Object rows
+        const rows = arr.map((x) => (x && typeof x === "object") ? x : { value: x });
+
+        // Build headers from union of keys (limited)
+        const headerSet = new Set();
+        for (const r of rows) for (const k of Object.keys(r)) headerSet.add(k);
+        const headers = Array.from(headerSet).slice(0, 12); // keep it readable
+
+        const trh = document.createElement("tr");
+        headers.forEach((k) => {
+            const th = document.createElement("th");
+            th.textContent = cleanKey(k);
+            trh.appendChild(th);
         });
-        parent.appendChild(ul);
+        thead.appendChild(trh);
 
-        if (arr.length > max) parent.appendChild(paragraph("Note", `Showing first ${max} entries (PDF-friendly).`));
+        rows.forEach((r) => {
+            const tr = document.createElement("tr");
+            headers.forEach((k) => {
+                const td = document.createElement("td");
+                const v = r[k];
+                if (isScalar(v)) td.textContent = v == null ? "" : String(v);
+                else td.textContent = JSON.stringify(v);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        return wrap;
     }
 
-    function renderObjectAsParagraphs(parent, obj) {
-        for (const [k, v] of Object.entries(obj || {})) {
-            if (Array.isArray(v)) renderArrayAsParagraphs(parent, k, v);
-            else if (v && typeof v === "object") {
-                const sub = el("h3", "", k.replace(/_/g, " "));
-                sub.style.margin = "14px 0 8px";
-                parent.appendChild(sub);
-                renderObjectAsParagraphs(parent, v);
-            } else parent.appendChild(paragraph(k, v));
+    function renderBlockFromValue(title, value) {
+        const block = h("div", "block");
+        block.appendChild(h("div", "block-title", title));
+
+        if (value == null) {
+            block.appendChild(h("div", "", "No data."));
+            return block;
         }
+
+        if (Array.isArray(value)) {
+            const max = 30;
+            const slice = value.slice(0, max);
+            block.appendChild(tableFromArray(slice));
+            if (value.length > max) block.appendChild(h("div", "badge", `Showing first ${max} rows`));
+            return block;
+        }
+
+        if (typeof value === "object") {
+            // split scalars vs arrays/objects
+            const scalars = {};
+            const complex = {};
+
+            for (const [k, v] of Object.entries(value)) {
+                if (isScalar(v)) scalars[k] = v;
+                else complex[k] = v;
+            }
+
+            if (Object.keys(scalars).length) block.appendChild(renderKVGrid(scalars));
+
+            for (const [k, v] of Object.entries(complex)) {
+                if (Array.isArray(v)) {
+                    block.appendChild(renderBlockFromValue(cleanKey(k), v));
+                } else if (v && typeof v === "object") {
+                    // nested object: show key/value grid (scalars only) + nested arrays as sub-blocks
+                    const nestedScalars = {};
+                    const nestedComplex = {};
+                    for (const [nk, nv] of Object.entries(v)) {
+                        if (isScalar(nv)) nestedScalars[nk] = nv;
+                        else nestedComplex[nk] = nv;
+                    }
+
+                    const nested = h("div", "block");
+                    nested.appendChild(h("div", "block-title", cleanKey(k)));
+                    if (Object.keys(nestedScalars).length) nested.appendChild(renderKVGrid(nestedScalars));
+                    for (const [nk, nv] of Object.entries(nestedComplex)) {
+                        nested.appendChild(renderBlockFromValue(cleanKey(nk), nv));
+                    }
+                    block.appendChild(nested);
+                } else {
+                    block.appendChild(h("div", "", `${cleanKey(k)}: ${String(v)}`));
+                }
+            }
+
+            return block;
+        }
+
+        // scalar
+        block.appendChild(h("div", "", String(value)));
+        return block;
     }
 
-    function renderJsonNarrative(parsedJson) {
+    function renderReportLike(parsed) {
         const frag = document.createDocumentFragment();
-        const modules =
-            (parsedJson?.modules && typeof parsedJson.modules === "object")
-                ? parsedJson.modules
-                : { REPORT: parsedJson };
+        const modulesRaw = parsed?.modules && typeof parsed.modules === "object" ? parsed.modules : { REPORT: parsed };
+        const modules = normalizeObject(modulesRaw);
 
-        for (const [sectionName, sectionData] of Object.entries(modules)) {
-            const sec = el("div", "section");
-            sec.appendChild(el("h2", "", sectionName.replace(/_/g, " ")));
-            sec.appendChild(el("div", "divider"));
+        for (const [name, data] of Object.entries(modules)) {
+            const section = h("div", "section");
 
-            if (Array.isArray(sectionData)) renderArrayAsParagraphs(sec, sectionName, sectionData);
-            else if (sectionData && typeof sectionData === "object") renderObjectAsParagraphs(sec, sectionData);
-            else sec.appendChild(paragraph(sectionName, sectionData));
+            const head = h("div", "section-head");
+            head.appendChild(h("h2", "section-title", cleanKey(name)));
+            head.appendChild(h("div", "badge", currentMode === "XML" ? "XML" : "JSON"));
+            section.appendChild(head);
 
-            frag.appendChild(sec);
+            // Main block (unwrap payload/item noise)
+            section.appendChild(renderBlockFromValue("Overview", normalizeObject(data)));
+
+            frag.appendChild(section);
         }
+
         return frag;
     }
 
     // -----------------------------
-    // ✅ XML → Object (so it can render like JSON)
+    // ✅ XML → object, then render like JSON
     // -----------------------------
     function xmlElementToObject(node) {
-        // returns: string | object | array
         if (!node || node.nodeType !== 1) return null;
 
-        // Collect attributes
         const obj = {};
         if (node.attributes && node.attributes.length) {
             for (const a of node.attributes) obj[`@${a.name}`] = a.value;
         }
 
-        // Child elements
         const children = Array.from(node.children || []);
-
-        // If no element-children, return text (plus attrs if exist)
         const text = (node.textContent || "").trim();
+
         if (children.length === 0) {
             if (Object.keys(obj).length === 0) return text;
             obj["#text"] = text;
             return obj;
         }
 
-        // Group children by tag name (arrays when repeated)
         for (const child of children) {
             const key = child.nodeName;
             const val = xmlElementToObject(child);
-
-            if (obj[key] === undefined) {
-                obj[key] = val;
-            } else if (Array.isArray(obj[key])) {
-                obj[key].push(val);
-            } else {
-                obj[key] = [obj[key], val];
-            }
+            if (obj[key] === undefined) obj[key] = val;
+            else if (Array.isArray(obj[key])) obj[key].push(val);
+            else obj[key] = [obj[key], val];
         }
 
         return obj;
     }
 
     function xmlToReportLikeJson(xmlString) {
-        // Make a "modules"-style object, so it looks like your JSON report
-        // Expected root: CustomerUnifiedReport (from your screenshot)
         const xml = String(xmlString || "").trim();
         if (!xml) return null;
 
@@ -319,24 +430,15 @@
         const root = doc.documentElement;
         const rootObj = xmlElementToObject(root);
 
-        // Try to locate Modules under root
-        const maybeModules =
-            rootObj?.Modules ||
-            rootObj?.modules ||
-            rootObj?.CustomerUnifiedReport?.Modules ||
-            null;
-
+        const maybeModules = rootObj?.Modules || rootObj?.modules || null;
         if (maybeModules && typeof maybeModules === "object") {
-            // Normalize into { modules: { ... } }
             return { modules: maybeModules };
         }
-
-        // Fallback: wrap entire root as one section
         return { modules: { [root.nodeName]: rootObj } };
     }
 
     // -----------------------------
-    // Module switching + render
+    // Render
     // -----------------------------
     function setActiveModule(module) {
         currentModule = module;
@@ -348,7 +450,7 @@
 
         if (module === "customer_reports") {
             elPageTitle.textContent = "Customer Reports";
-            elPageSub.textContent = "Readable narrative view (paragraphs) — PDF-ready";
+            elPageSub.textContent = "Simple tables — readable & PDF-ready";
         } else if (module === "json_raw") {
             elPageTitle.textContent = "JSON Raw (Debug)";
             elPageSub.textContent = "Pretty printed JSON text";
@@ -367,7 +469,7 @@
         if (!currentReport) {
             setLabels(null);
             setStatus("No report loaded yet.");
-            elNarrative.innerHTML = '<div class="p" style="opacity:.8;">Load a report to view.</div>';
+            elNarrative.innerHTML = "Load a report to view.";
             elNarrative.style.display = "";
             elRaw.style.display = "none";
             return;
@@ -392,7 +494,7 @@
             return;
         }
 
-        // Narrative module
+        // Narrative
         elNarrative.style.display = "";
         elRaw.style.display = "none";
 
@@ -400,23 +502,23 @@
             const parsed = safeJsonParse(currentReport.json);
             if (!parsed) {
                 setStatus("Invalid JSON — showing raw.");
-                elNarrative.appendChild(el("pre", "code", String(currentReport.json ?? "")));
+                elNarrative.appendChild(h("pre", "code", String(currentReport.json ?? "")));
                 return;
             }
-            setStatus("Narrative JSON view (PDF-ready).");
-            elNarrative.appendChild(renderJsonNarrative(parsed));
+            setStatus("JSON — simple tables (PDF-ready).");
+            elNarrative.appendChild(renderReportLike(parsed));
             return;
         }
 
-        // ✅ XML narrative: convert to object then render like JSON
         const asJson = xmlToReportLikeJson(currentReport.xml);
         if (!asJson) {
             setStatus("Invalid XML — showing raw.");
-            elNarrative.appendChild(el("pre", "code", String(currentReport.xml ?? "")));
+            elNarrative.appendChild(h("pre", "code", String(currentReport.xml ?? "")));
             return;
         }
-        setStatus("Narrative XML view (rendered like JSON — PDF-ready).");
-        elNarrative.appendChild(renderJsonNarrative(asJson));
+
+        setStatus("XML — rendered like JSON (simple tables, PDF-ready).");
+        elNarrative.appendChild(renderReportLike(asJson));
     }
 
     // -----------------------------
