@@ -656,14 +656,34 @@
 
         elPrintBtn.addEventListener("click", () => {
             if (!currentReport) return;
+
+            // Force narrative view (PDF-ready). If user is on raw debug modules, switch back for printing.
+            const prevModule = currentModule;
+            if (prevModule !== "customer_reports") {
+                setActiveModule("customer_reports");
+            }
+
+            // Ensure render is up to date before printing
+            render();
+
             const base = buildBaseFilename(currentReport);
             const oldTitle = document.title;
             document.title = base;
-            setTimeout(() => {
-                window.print();
-                setTimeout(() => (document.title = oldTitle), 300);
-            }, 80);
+
+            // Let the DOM paint the latest changes before print dialog opens
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    window.print();
+
+                    // Restore
+                    setTimeout(() => {
+                        document.title = oldTitle;
+                        if (prevModule !== "customer_reports") setActiveModule(prevModule);
+                    }, 300);
+                }, 150);
+            });
         });
+
     }
 
     async function boot() {

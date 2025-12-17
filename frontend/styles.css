@@ -454,14 +454,18 @@ td.mono {
 
     @page {
         size: A4;
-        margin: 14mm;
+        margin: 12mm;
     }
 
+    /* Hide UI chrome */
     .sidebar,
     .actions,
     .toolbar,
     #themeBtn,
-    #logoutBtn {
+    #logoutBtn,
+    #reloadBtn,
+    #loadBtn,
+    #customerSelect {
         display: none !important;
     }
 
@@ -473,6 +477,7 @@ td.mono {
         padding: 0 !important;
     }
 
+    /* Flatten shadows/borders for print */
     .card,
     .pill,
     .section,
@@ -480,13 +485,83 @@ td.mono {
     .table-wrap,
     .code {
         box-shadow: none !important;
+        border: 1px solid #d0d0d0 !important;
+    }
+
+    /* Headings */
+    .h1 {
+        font-size: 16px !important;
+        margin-bottom: 2mm !important;
+    }
+
+    .sub {
+        color: #222 !important;
+        font-size: 11px !important;
+    }
+
+    /* Make each section start cleanly */
+    .section {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* If a section is huge, allow blocks inside to break */
+    .block {
+        page-break-inside: auto;
+        break-inside: auto;
+    }
+
+    /* Tables print-fit */
+    .table-wrap {
+        overflow: visible !important;
     }
 
     table {
+        width: 100% !important;
         min-width: 0 !important;
+        font-size: 10.5px !important;
+        table-layout: fixed !important;
     }
 
     thead th {
         position: static !important;
+        background: #f3f3f3 !important;
+        color: #000 !important;
+        border-bottom: 1px solid #cfcfcf !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+    }
+
+    tbody td {
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    /* Key/value grid compact */
+    .kvgrid {
+        grid-template-columns: 140px 1fr !important;
+        gap: 6px 10px !important;
+        font-size: 10.5px !important;
+    }
+
+    .badge {
+        border: 1px solid #cfcfcf !important;
+        background: #f6f6f6 !important;
+        color: #000 !important;
+    }
+
+    /* Keep cards/modules separated on PDF pages */
+    .section+.section {
+        margin-top: 8mm !important;
+    }
+
+    /* Raw debug output should wrap */
+    .code {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+        min-height: auto !important;
+        font-size: 10px !important;
     }
 }
