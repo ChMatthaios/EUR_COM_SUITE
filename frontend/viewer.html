@@ -5,14 +5,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
 
-    <!-- Soft no-cache hints (server headers are best, but this helps) -->
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
 
     <title>Reports Viewer — EUR COM SUITE</title>
 
-    <!-- Load CSS normally (we will cache-bust it safely below) -->
+    <!-- CSS placeholder (we’ll set href with a timestamp) -->
     <link id="appCss" rel="stylesheet" href="styles.css" />
 </head>
 
@@ -114,18 +113,18 @@
         </main>
     </div>
 
-    <!-- ✅ SAFE cache-busting loader: runs AFTER DOM exists -->
+    <!-- Cache-bust: load assets with unique timestamp -->
     <script>
         (function () {
             const v = Date.now();
 
-            // Bust CSS cache
             const css = document.getElementById("appCss");
             if (css) css.href = "styles.css?v=" + v;
 
-            // Load JS AFTER DOM exists (do NOT use defer here)
             const s = document.createElement("script");
             s.src = "app.js?v=" + v;
+            s.onload = () => console.log("✅ app.js loaded");
+            s.onerror = () => alert("❌ Failed to load app.js. Check path/frontend server.");
             document.body.appendChild(s);
         })();
     </script>

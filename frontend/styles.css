@@ -339,7 +339,6 @@ body {
     white-space: pre;
 }
 
-/* PRINT / PDF */
 @media print {
 
     :root,

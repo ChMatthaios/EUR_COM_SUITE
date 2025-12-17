@@ -2,9 +2,8 @@
     const API_BASE = "http://127.0.0.1:8000/api";
     const $ = (id) => document.getElementById(id);
 
-    // DOM (safe getters)
+    // DOM
     const elThemeBtn = $("themeBtn");
-
     const elModuleCustomer = $("module_customer_reports");
     const elModuleJsonRaw = $("module_json_raw");
     const elModuleXmlRaw = $("module_xml_raw");
@@ -43,23 +42,12 @@
     let currentModule = "customer_reports";
     let currentReport = null;
 
-    // If critical elements are missing, show a clear error instead of silent failure
-    function assertDom() {
-        const required = [
-            elPageTitle, elCustomerSelect, elLoadBtn, elLogoutBtn,
-            elNarrative, elRaw, elError, elStatus,
-            elBtnJson, elBtnXml, elDownloadJson, elDownloadXml, elPrintBtn,
-            elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw
-        ];
-        const ok = required.every(Boolean);
-        if (!ok) {
-            console.error("Viewer DOM is missing required elements. Check viewer.html ids.");
-            alert("UI failed to initialize: missing required DOM elements. Check viewer.html ids.");
-        }
-        return ok;
-    }
+    // -----------------------------
+    // Helpers
+    // -----------------------------
+    function setError(msg) { elError.textContent = msg || ""; }
+    function setStatus(msg) { elStatus.textContent = msg || ""; }
 
-    // Auth
     function getToken() { return localStorage.getItem("ecs_token"); }
 
     function getStoredUser() {
@@ -91,21 +79,6 @@
         return res;
     }
 
-    // UI helpers
-    function setError(msg) { if (elError) elError.textContent = msg || ""; }
-    function setStatus(msg) { if (elStatus) elStatus.textContent = msg || ""; }
-
-    function setLabels(report) {
-        if (elCustomerIdLabel) elCustomerIdLabel.textContent = report?.customerId ?? "-";
-        if (elGeneratedAtLabel) elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
-        if (elRunIdLabel) elRunIdLabel.textContent = report?.runId ?? "-";
-    }
-
-    function clearRender() {
-        if (elNarrative) elNarrative.innerHTML = "";
-        if (elRaw) elRaw.textContent = "";
-    }
-
     function setTheme(theme) {
         document.documentElement.setAttribute("data-theme", theme);
         localStorage.setItem("ecs_theme", theme);
@@ -113,6 +86,17 @@
     function toggleTheme() {
         const cur = document.documentElement.getAttribute("data-theme") || "light";
         setTheme(cur === "light" ? "dark" : "light");
+    }
+
+    function setLabels(report) {
+        elCustomerIdLabel.textContent = report?.customerId ?? "-";
+        elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
+        elRunIdLabel.textContent = report?.runId ?? "-";
+    }
+
+    function clearRender() {
+        elNarrative.innerHTML = "";
+        elRaw.textContent = "";
     }
 
     function safeJsonParse(maybeJson) {
@@ -151,7 +135,9 @@
         };
     }
 
+    // -----------------------------
     // Filename rules
+    // -----------------------------
     function slugify(s) {
         return String(s || "").trim().replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, "_");
     }
@@ -165,7 +151,6 @@
             parsed?.customer ||
             parsed?.modules?.KYC?.customer ||
             null;
-
         const first = customer?.firstName || "";
         const last = customer?.lastName || "";
         const full = `${first} ${last}`.trim();
@@ -180,7 +165,6 @@
             const cname = getCustomerNameFromReportJson(report) || user.username || `customer_${report.customerId}`;
             return `${slugify(cname)}_${ts}`;
         }
-
         const empId = user.id ?? user.username ?? "employee";
         const custId = report?.customerId ?? "unknownCustomer";
         return `customer_${slugify(custId)}_employee_${slugify(empId)}_${ts}`;
@@ -198,7 +182,9 @@
         URL.revokeObjectURL(url);
     }
 
-    // Narrative renderers
+    // -----------------------------
+    // Narrative renderer (JSON-style)
+    // -----------------------------
     function el(tag, className, text) {
         const n = document.createElement(tag);
         if (className) n.className = className;
@@ -261,9 +247,10 @@
 
     function renderJsonNarrative(parsedJson) {
         const frag = document.createDocumentFragment();
-        const modules = (parsedJson?.modules && typeof parsedJson.modules === "object")
-            ? parsedJson.modules
-            : { REPORT: parsedJson };
+        const modules =
+            (parsedJson?.modules && typeof parsedJson.modules === "object")
+                ? parsedJson.modules
+                : { REPORT: parsedJson };
 
         for (const [sectionName, sectionData] of Object.entries(modules)) {
             const sec = el("div", "section");
@@ -279,60 +266,81 @@
         return frag;
     }
 
-    function xmlToNarrative(xmlString) {
-        const frag = document.createDocumentFragment();
+    // -----------------------------
+    // ✅ XML → Object (so it can render like JSON)
+    // -----------------------------
+    function xmlElementToObject(node) {
+        // returns: string | object | array
+        if (!node || node.nodeType !== 1) return null;
 
-        let doc;
-        try {
-            doc = new DOMParser().parseFromString(String(xmlString || ""), "application/xml");
-            if (doc.querySelector("parsererror")) throw new Error("Invalid XML");
-        } catch {
-            const sec = el("div", "section");
-            sec.appendChild(el("h2", "", "XML"));
-            sec.appendChild(el("div", "divider"));
-            sec.appendChild(paragraph("Note", "Invalid XML. Showing raw:"));
-            sec.appendChild(el("pre", "code", String(xmlString || "")));
-            frag.appendChild(sec);
-            return frag;
+        // Collect attributes
+        const obj = {};
+        if (node.attributes && node.attributes.length) {
+            for (const a of node.attributes) obj[`@${a.name}`] = a.value;
         }
 
-        const sec = el("div", "section");
-        sec.appendChild(el("h2", "", "XML (Narrative)"));
-        sec.appendChild(el("div", "divider"));
+        // Child elements
+        const children = Array.from(node.children || []);
 
-        const lines = [];
-        function walk(node, path) {
-            if (node.nodeType !== 1) return;
-            const name = node.nodeName;
-            const newPath = path ? `${path}.${name}` : name;
-
-            if (node.attributes && node.attributes.length) {
-                for (const a of node.attributes) lines.push({ k: `${newPath}@${a.name}`, v: a.value });
-            }
-
-            const children = Array.from(node.children || []);
-            const text = (node.textContent || "").trim();
-
-            if (children.length === 0 && text) {
-                lines.push({ k: newPath, v: text });
-                return;
-            }
-            children.forEach((c) => walk(c, newPath));
+        // If no element-children, return text (plus attrs if exist)
+        const text = (node.textContent || "").trim();
+        if (children.length === 0) {
+            if (Object.keys(obj).length === 0) return text;
+            obj["#text"] = text;
+            return obj;
         }
 
-        walk(doc.documentElement, "");
+        // Group children by tag name (arrays when repeated)
+        for (const child of children) {
+            const key = child.nodeName;
+            const val = xmlElementToObject(child);
 
-        const max = 250;
-        lines.slice(0, max).forEach(({ k, v }) => sec.appendChild(paragraph(k, v)));
-        if (lines.length > max) sec.appendChild(paragraph("Note", `Showing first ${max} lines (PDF-friendly).`));
+            if (obj[key] === undefined) {
+                obj[key] = val;
+            } else if (Array.isArray(obj[key])) {
+                obj[key].push(val);
+            } else {
+                obj[key] = [obj[key], val];
+            }
+        }
 
-        frag.appendChild(sec);
-        return frag;
+        return obj;
     }
 
-    // Modules
+    function xmlToReportLikeJson(xmlString) {
+        // Make a "modules"-style object, so it looks like your JSON report
+        // Expected root: CustomerUnifiedReport (from your screenshot)
+        const xml = String(xmlString || "").trim();
+        if (!xml) return null;
+
+        const doc = new DOMParser().parseFromString(xml, "application/xml");
+        if (doc.querySelector("parsererror")) return null;
+
+        const root = doc.documentElement;
+        const rootObj = xmlElementToObject(root);
+
+        // Try to locate Modules under root
+        const maybeModules =
+            rootObj?.Modules ||
+            rootObj?.modules ||
+            rootObj?.CustomerUnifiedReport?.Modules ||
+            null;
+
+        if (maybeModules && typeof maybeModules === "object") {
+            // Normalize into { modules: { ... } }
+            return { modules: maybeModules };
+        }
+
+        // Fallback: wrap entire root as one section
+        return { modules: { [root.nodeName]: rootObj } };
+    }
+
+    // -----------------------------
+    // Module switching + render
+    // -----------------------------
     function setActiveModule(module) {
         currentModule = module;
+
         [elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw].forEach((b) => b.classList.remove("active"));
         if (module === "customer_reports") elModuleCustomer.classList.add("active");
         if (module === "json_raw") elModuleJsonRaw.classList.add("active");
@@ -348,6 +356,7 @@
             elPageTitle.textContent = "XML Raw (Debug)";
             elPageSub.textContent = "Pretty printed XML text";
         }
+
         render();
     }
 
@@ -391,7 +400,6 @@
             const parsed = safeJsonParse(currentReport.json);
             if (!parsed) {
                 setStatus("Invalid JSON — showing raw.");
-                elNarrative.appendChild(el("div", "section"));
                 elNarrative.appendChild(el("pre", "code", String(currentReport.json ?? "")));
                 return;
             }
@@ -400,11 +408,20 @@
             return;
         }
 
-        setStatus("Narrative XML view (PDF-ready).");
-        elNarrative.appendChild(xmlToNarrative(currentReport.xml));
+        // ✅ XML narrative: convert to object then render like JSON
+        const asJson = xmlToReportLikeJson(currentReport.xml);
+        if (!asJson) {
+            setStatus("Invalid XML — showing raw.");
+            elNarrative.appendChild(el("pre", "code", String(currentReport.xml ?? "")));
+            return;
+        }
+        setStatus("Narrative XML view (rendered like JSON — PDF-ready).");
+        elNarrative.appendChild(renderJsonNarrative(asJson));
     }
 
+    // -----------------------------
     // Loading
+    // -----------------------------
     async function loadCustomerListOrSelf() {
         setError("");
         setStatus("Loading...");
@@ -494,7 +511,9 @@
         render();
     }
 
+    // -----------------------------
     // Events
+    // -----------------------------
     function hookEvents() {
         elThemeBtn.addEventListener("click", toggleTheme);
 
@@ -536,10 +555,8 @@
         elPrintBtn.addEventListener("click", () => {
             if (!currentReport) return;
             const base = buildBaseFilename(currentReport);
-
             const oldTitle = document.title;
             document.title = base;
-
             setTimeout(() => {
                 window.print();
                 setTimeout(() => (document.title = oldTitle), 300);
@@ -548,8 +565,6 @@
     }
 
     async function boot() {
-        if (!assertDom()) return;
-
         const theme = localStorage.getItem("ecs_theme") || "light";
         setTheme(theme);
 
@@ -563,8 +578,10 @@
         await loadCustomerListOrSelf();
     }
 
-    // ✅ This script is loaded after DOM in viewer.html loader, but keep this safe anyway
-    window.addEventListener("DOMContentLoaded", () => {
-        boot().catch((e) => setError(String(e)));
-    });
+    // Init (works even if script loads late)
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => boot().catch(e => setError(String(e))));
+    } else {
+        boot().catch(e => setError(String(e)));
+    }
 })();
