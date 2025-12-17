@@ -1,134 +1,449 @@
+/* frontend/styles.css?v=100 */
+/* Bulletproof light/dark layout for viewer */
+
+:root {
+    --bg: #f6f7fb;
+    --panel: #ffffff;
+    --panel2: #f2f4f8;
+    --text: #0f172a;
+    --muted: rgba(15, 23, 42, .65);
+    --border: rgba(15, 23, 42, .12);
+    --shadow: 0 12px 30px rgba(15, 23, 42, .08);
+    --brand: #2563eb;
+    --brand2: #1d4ed8;
+    --danger: #b91c1c;
+    --radius: 16px;
+    --radius2: 12px;
+    --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+html[data-theme="dark"] {
+    --bg: #0b1220;
+    --panel: #0f172a;
+    --panel2: #0b1220;
+    --text: #e5e7eb;
+    --muted: rgba(229, 231, 235, .7);
+    --border: rgba(229, 231, 235, .12);
+    --shadow: 0 18px 40px rgba(0, 0, 0, .35);
+    --brand: #60a5fa;
+    --brand2: #3b82f6;
+    --danger: #ff6b6b;
+}
+
 * {
     box-sizing: border-box;
 }
 
+html,
+body {
+    height: 100%;
+}
+
 body {
     margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
-    background: #0f1115;
-    color: #e7e7e7;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
 }
 
-.bar {
+.container {
+    display: grid !important;
+    grid-template-columns: 300px 1fr !important;
+    min-height: 100vh;
+}
+
+.sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+.main {
+    padding: 20px;
+}
+
+.brand {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    border-bottom: 1px solid #2a2f3a;
-    background: #131722;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius2);
+    background: linear-gradient(135deg, rgba(37, 99, 235, .10), rgba(37, 99, 235, .02));
 }
 
-h1 {
-    font-size: 18px;
-    margin: 0;
+.brand-title {
+    font-weight: 800;
 }
 
-.sub {
+.brand-sub {
     font-size: 12px;
-    opacity: 0.8;
+    color: var(--muted);
     margin-top: 2px;
 }
 
-.right {
-    display: flex;
-    gap: 8px;
-    align-items: end;
-}
-
-.label {
-    display: flex;
-    flex-direction: column;
+.side-title {
+    margin: 14px 6px 8px;
     font-size: 12px;
-    gap: 4px;
-    opacity: 0.95;
+    font-weight: 800;
+    letter-spacing: .08em;
+    color: var(--muted);
+    text-transform: uppercase;
 }
 
-select,
-button {
-    height: 32px;
-    border-radius: 8px;
-    border: 1px solid #2a2f3a;
-    background: #0f1115;
-    color: #e7e7e7;
-    padding: 0 10px;
+/* Sidebar module buttons: evenly spaced, easy to scan */
+.nav {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
 }
 
-button {
+.nav button {
+    width: 100%;
+    text-align: left;
+    padding: 12px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
     cursor: pointer;
+    color: var(--text);
+    transition: transform .06s ease, background .12s ease, border-color .12s ease;
 }
 
-button:hover {
-    border-color: #4b556b;
+.nav button:hover {
+    transform: translateY(-1px);
 }
 
-button.active {
-    border-color: #8aa4ff;
+.nav button.active {
+    background: rgba(37, 99, 235, .12);
+    border-color: rgba(37, 99, 235, .35);
+    font-weight: 900;
 }
 
-.wrap {
-    padding: 16px;
+.kv {
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    border-radius: 14px;
+    padding: 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.kv-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.kv-key {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.kv-val {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 900;
+}
+
+.sub {
+    color: var(--muted);
+    margin-top: 6px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+}
+
+.btn.primary {
+    background: var(--brand);
+    color: white;
+    border-color: rgba(37, 99, 235, .35);
+}
+
+.btn.primary:hover {
+    background: var(--brand2);
+}
+
+select.btn {
+    box-shadow: none;
 }
 
 .card {
-    background: #131722;
-    border: 1px solid #2a2f3a;
-    border-radius: 12px;
-    padding: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
 }
 
 .row {
     display: flex;
     gap: 12px;
-    justify-content: space-between;
-    align-items: center;
     flex-wrap: wrap;
+    justify-content: space-between;
 }
 
-.meta {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
+.pill {
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    border-radius: 999px;
+    padding: 8px 12px;
     font-size: 13px;
 }
 
-.actions {
+.toolbar {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     flex-wrap: wrap;
+    margin-top: 12px;
+    align-items: center;
+}
+
+.segment {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.segment button {
+    border: 0;
+    background: transparent;
+    padding: 9px 12px;
+    cursor: pointer;
+    color: var(--text);
+}
+
+.segment button.active {
+    background: rgba(37, 99, 235, .14);
+    font-weight: 900;
 }
 
 .status {
     margin-top: 10px;
-    font-size: 13px;
-    min-height: 18px;
-    opacity: 0.95;
+    color: var(--muted);
 }
 
-.status.ok {
-    color: #a3ffb0;
+.error {
+    margin-top: 8px;
+    color: var(--danger);
+    white-space: pre-wrap;
 }
 
-.status.warn {
-    color: #ffe08a;
-}
-
-.status.err {
-    color: #ff8a8a;
-}
-
-.status.info {
-    color: #a8c7ff;
-}
-
-.output {
+.table {
+    width: 100%;
+    border-collapse: collapse;
     margin-top: 12px;
-    padding: 12px;
-    background: #0f1115;
-    border: 1px solid #2a2f3a;
-    border-radius: 12px;
-    min-height: 480px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.table th,
+.table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+
+.table th {
+    background: var(--panel2);
+    font-size: 13px;
+}
+
+.details {
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    border-radius: 14px;
+    padding: 10px 12px;
+}
+
+.details summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.code {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
     overflow: auto;
-    font-size: 12px;
-    line-height: 1.4;
+    min-height: 360px;
     white-space: pre;
+}
+
+/* ---------------------------
+   PRINT / PDF READY STYLES
+   --------------------------- */
+@media print {
+
+    /* Force white background for PDF */
+    :root,
+    html,
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Page setup (Chrome respects margin; A4 is typical) */
+    @page {
+        size: A4;
+        margin: 14mm;
+    }
+
+    /* Hide sidebar & interactive controls */
+    .sidebar,
+    .actions,
+    .toolbar,
+    #themeBtn,
+    #logoutBtn,
+    #reloadBtn,
+    #loadBtn,
+    #downloadJsonBtn,
+    #downloadXmlBtn,
+    #printBtn,
+    .segment {
+        display: none !important;
+    }
+
+    /* Make main full width */
+    .container {
+        display: block !important;
+    }
+
+    .main {
+        padding: 0 !important;
+    }
+
+    /* Remove shadows (better for print) */
+    .card,
+    .pill,
+    .table,
+    .details,
+    .code {
+        box-shadow: none !important;
+    }
+
+    /* Borders look nicer in print */
+    .card,
+    .pill,
+    .table,
+    .details,
+    .code {
+        border: 1px solid #cfcfcf !important;
+    }
+
+    /* Title sizing */
+    .h1 {
+        font-size: 20px !important;
+        margin: 0 0 6px 0 !important;
+    }
+
+    .sub {
+        color: #333 !important;
+        margin: 0 0 10px 0 !important;
+    }
+
+    /* Status/error should still show but in print-friendly colors */
+    .status {
+        color: #333 !important;
+    }
+
+    .error {
+        color: #b00020 !important;
+    }
+
+    /* Tables: ensure they break and wrap nicely */
+    .table {
+        page-break-inside: auto;
+    }
+
+    .table tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    .table th,
+    .table td {
+        color: #000 !important;
+        background: #fff !important;
+        border-bottom: 1px solid #d9d9d9 !important;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    /* Make printed tables readable (prevents vertical letter stacking) */
+    .table {
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+
+    .table th,
+    .table td {
+        font-size: 10.5px !important;
+        line-height: 1.25 !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    /* Nested tables: avoid extreme shrinking */
+    .table .table {
+        font-size: 10px !important;
+    }
+
+    /* Code blocks (XML) wrap on print */
+    .code {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+        min-height: auto !important;
+    }
+
+    /* Expand details for print so nested tables are visible */
+    details {
+        open: true;
+    }
+
+    summary {
+        display: none !important;
+    }
 }

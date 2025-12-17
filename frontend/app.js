@@ -2,24 +2,43 @@
 (() => {
     const API_BASE = "http://127.0.0.1:8000/api";
 
-    // ----- DOM helpers (safe) -----
+    // ----- DOM -----
     const $ = (id) => document.getElementById(id);
-    const setText = (id, txt) => {
-        const el = $(id);
-        if (el) el.textContent = txt ?? "";
-    };
-    const setHtml = (id, html) => {
-        const el = $(id);
-        if (el) el.innerHTML = html ?? "";
-    };
-    const show = (id) => {
-        const el = $(id);
-        if (el) el.style.display = "";
-    };
-    const hide = (id) => {
-        const el = $(id);
-        if (el) el.style.display = "none";
-    };
+
+    const elThemeBtn = $("themeBtn");
+
+    const elModuleCustomer = $("module_customer_reports");
+    const elModuleJsonRaw = $("module_json_raw");
+    const elModuleXmlRaw = $("module_xml_raw");
+
+    const elSideUser = $("sideUser");
+    const elSideRole = $("sideRole");
+    const elSideCustomer = $("sideCustomer");
+
+    const elPageTitle = $("pageTitle");
+    const elPageSub = $("pageSub");
+
+    const elCustomerSelect = $("customerSelect");
+    const elReloadBtn = $("reloadBtn");
+    const elLoadBtn = $("loadBtn");
+    const elLogoutBtn = $("logoutBtn");
+
+    const elError = $("errorMessage");
+    const elStatus = $("statusMessage");
+
+    const elCustomerIdLabel = $("customerIdLabel");
+    const elAsOfDateLabel = $("asOfDateLabel");
+    const elRunIdLabel = $("runIdLabel");
+
+    const elBtnJson = $("btnJson");
+    const elBtnXml = $("btnXml");
+
+    const elDownloadJson = $("downloadJsonBtn");
+    const elDownloadXml = $("downloadXmlBtn");
+    const elPrintBtn = $("printBtn");
+
+    const elJsonContainer = $("jsonContainer");
+    const elXmlContainer = $("xmlContainer");
 
     // ----- auth helpers -----
     function getToken() {
@@ -52,139 +71,96 @@
         });
 
         if (res.status === 401) {
-            // Missing/expired token -> back to login
             logoutToLogin();
-            throw new Error("Unauthorized");
+            throw new Error("Unauthorized (missing/expired token)");
         }
-
         return res;
     }
 
-    // ----- UI slots (support multiple possible IDs) -----
-    // Your HTML from the repo uses specific IDs; we keep it flexible.
-    const elCustomerSelect = $("customerSelect") || $("customerDropdown") || $("customer");
-    const elReloadBtn = $("reloadBtn") || $("btnReload") || $("reload");
-    const elLoadBtn = $("loadBtn") || $("btnLoad") || $("loadReportBtn");
+    // ----- state -----
+    let currentMode = "JSON"; // JSON or XML
+    let currentModule = "customer_reports"; // customer_reports | json_raw | xml_raw
+    let currentReport = null;
 
-    // error/status containers (your HTML shows “API error …” somewhere)
-    const elError = $("errorMessage") || $("apiError") || $("error");
-    const elStatus = $("statusMessage") || $("status");
-
-    // metadata labels (based on your UI: CustomerId / AsOfDate / ExtractionDate)
-    const elCustomerIdLabel = $("customerIdLabel") || $("customerId");
-    const elAsOfDateLabel = $("asOfDateLabel") || $("asOfDate");
-    const elExtractionDateLabel = $("extractionDateLabel") || $("extractionDate");
-
-    // display area (code block)
-    const elCode = $("codeArea") || $("output") || $("reportOutput");
-
-    // mode buttons
-    const elBtnJson = $("btnJson") || $("jsonBtn") || $("JSON");
-    const elBtnXml = $("btnXml") || $("xmlBtn") || $("XML");
-
-    // download buttons
-    const elDownloadJson = $("downloadJsonBtn") || $("btnDownloadJson") || $("downloadJson");
-    const elDownloadXml = $("downloadXmlBtn") || $("btnDownloadXml") || $("downloadXml");
-
-    // ----- Viewer state -----
-    let currentMode = "JSON"; // "JSON" | "XML"
-    let currentReport = null; // object that contains json/xml + metadata
-
+    // ----- UI helpers -----
     function setError(msg) {
-        if (elError) elError.textContent = msg || "";
-        if (!msg && elError) elError.textContent = "";
+        elError.textContent = msg || "";
+    }
+    function setStatus(msg) {
+        elStatus.textContent = msg || "";
+    }
+    function setLabels({ customerId, generatedAt, runId }) {
+        elCustomerIdLabel.textContent = customerId ?? "-";
+        elAsOfDateLabel.textContent = generatedAt ?? "-";
+        elRunIdLabel.textContent = runId ?? "-";
+    }
+    function clearRender() {
+        elJsonContainer.innerHTML = "";
+        elXmlContainer.textContent = "";
     }
 
-    function setStatus(msg) {
-        if (elStatus) elStatus.textContent = msg || "";
+    function setTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("ecs_theme", theme);
+    }
+    function toggleTheme() {
+        const cur = document.documentElement.getAttribute("data-theme") || "light";
+        setTheme(cur === "light" ? "dark" : "light");
+    }
+
+    function h(tag, attrs = {}, children = []) {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+            if (k === "class") el.className = v;
+            else if (k === "style") el.style.cssText = v;
+            else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+            else el.setAttribute(k, v);
+        }
+        for (const c of children) {
+            if (c == null) continue;
+            if (typeof c === "string") el.appendChild(document.createTextNode(c));
+            else el.appendChild(c);
+        }
+        return el;
+    }
+
+    function isPlainObject(x) {
+        return x && typeof x === "object" && !Array.isArray(x);
     }
 
     function safeJsonParse(maybeJson) {
         if (maybeJson == null) return null;
         if (typeof maybeJson === "object") return maybeJson;
-        const s = String(maybeJson);
         try {
-            return JSON.parse(s);
+            return JSON.parse(String(maybeJson));
         } catch {
             return null;
         }
     }
 
-    // Try to detect which fields in the backend response contain JSON/XML content.
-    function extractReportPayload(row) {
-        // Common possibilities (adaptable):
-        const jsonCandidate =
-            row.json_report ??
-            row.json_content ??
-            row.unified_json ??
-            row.report_json ??
-            row.json ??
-            row.JSON ??
-            null;
+    function prettyXml(xml) {
+        try {
+            const PADDING = "  ";
+            const reg = /(>)(<)(\/*)/g;
+            let formatted = String(xml).replace(reg, "$1\r\n$2$3");
+            let pad = 0;
+            return formatted
+                .split("\r\n")
+                .map((line) => {
+                    let indent = 0;
+                    if (line.match(/.+<\/\w[^>]*>$/)) indent = 0;
+                    else if (line.match(/^<\/\w/)) { if (pad !== 0) pad -= 1; }
+                    else if (line.match(/^<\w([^>]*[^/])?>.*$/)) indent = 1;
+                    else indent = 0;
 
-        const xmlCandidate =
-            row.xml_report ??
-            row.xml_content ??
-            row.unified_xml ??
-            row.report_xml ??
-            row.xml ??
-            row.XML ??
-            null;
-
-        // Metadata possibilities
-        const customerId =
-            row.customer_id ?? row.customerId ?? row.CustomerId ?? row.customerID ?? null;
-
-        const asOfDate =
-            row.as_of_date ?? row.asOfDate ?? row.AsOfDate ?? row.as_of ?? null;
-
-        const extractionDate =
-            row.extraction_date ??
-            row.extractionDate ??
-            row.ExtractionDate ??
-            row.extracted_at ??
-            null;
-
-        return {
-            raw: row,
-            customerId: customerId != null ? String(customerId) : "",
-            asOfDate: asOfDate != null ? String(asOfDate) : "",
-            extractionDate: extractionDate != null ? String(extractionDate) : "",
-            json: jsonCandidate,
-            xml: xmlCandidate,
-        };
-    }
-
-    function render() {
-        if (!currentReport) {
-            setTextOnLabels("-", "-", "-");
-            setCode("// select a customer and click \"Load Report\"");
-            return;
+                    const out = PADDING.repeat(pad) + line;
+                    pad += indent;
+                    return out;
+                })
+                .join("\n");
+        } catch {
+            return String(xml ?? "");
         }
-
-        setTextOnLabels(
-            currentReport.customerId || "-",
-            currentReport.asOfDate || "-",
-            currentReport.extractionDate || "-"
-        );
-
-        if (currentMode === "JSON") {
-            const obj = safeJsonParse(currentReport.json);
-            if (obj) setCode(JSON.stringify(obj, null, 2));
-            else setCode(String(currentReport.json ?? ""));
-        } else {
-            setCode(String(currentReport.xml ?? ""));
-        }
-    }
-
-    function setTextOnLabels(customerId, asOfDate, extractionDate) {
-        if (elCustomerIdLabel) elCustomerIdLabel.textContent = customerId ?? "-";
-        if (elAsOfDateLabel) elAsOfDateLabel.textContent = asOfDate ?? "-";
-        if (elExtractionDateLabel) elExtractionDateLabel.textContent = extractionDate ?? "-";
-    }
-
-    function setCode(text) {
-        if (elCode) elCode.textContent = text ?? "";
     }
 
     function downloadText(filename, content, mime) {
@@ -199,125 +175,230 @@
         URL.revokeObjectURL(url);
     }
 
-    function hookButtons() {
-        if (elBtnJson) {
-            elBtnJson.addEventListener("click", () => {
-                currentMode = "JSON";
-                render();
-            });
-        }
-
-        if (elBtnXml) {
-            elBtnXml.addEventListener("click", () => {
-                currentMode = "XML";
-                render();
-            });
-        }
-
-        if (elDownloadJson) {
-            elDownloadJson.addEventListener("click", () => {
-                if (!currentReport) return;
-                const obj = safeJsonParse(currentReport.json);
-                const content = obj ? JSON.stringify(obj, null, 2) : String(currentReport.json ?? "");
-                downloadText(
-                    `customer_${currentReport.customerId || "unknown"}_report.json`,
-                    content,
-                    "application/json"
-                );
-            });
-        }
-
-        if (elDownloadXml) {
-            elDownloadXml.addEventListener("click", () => {
-                if (!currentReport) return;
-                downloadText(
-                    `customer_${currentReport.customerId || "unknown"}_report.xml`,
-                    String(currentReport.xml ?? ""),
-                    "application/xml"
-                );
-            });
-        }
-
-        if (elReloadBtn) elReloadBtn.addEventListener("click", loadCustomerListOrSelf);
-        if (elLoadBtn) elLoadBtn.addEventListener("click", loadSelectedCustomerReport);
+    function slugify(s) {
+        return String(s || "")
+            .trim()
+            .replace(/[\/\\:*?"<>|]/g, "")   // Windows illegal filename chars
+            .replace(/\s+/g, "_");
     }
 
-    // ----- Data loading -----
+    function getCustomerNameFromReportJson(report) {
+        // Your JSON contains: customer.firstName / customer.lastName (seen in PDF) :contentReference[oaicite:3]{index=3}
+        const parsed = safeJsonParse(report?.json);
+        const customer = parsed?.modules?.CUSTOMER_PROFILE?.customer || parsed?.customer || null;
 
+        const first = customer?.firstName || "";
+        const last = customer?.lastName || "";
+        const full = `${first} ${last}`.trim();
+
+        return full || null;
+    }
+
+    function buildBaseFilename(report) {
+        const user = getStoredUser();
+        const ts = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+$/, ""); // 2025-12-17T12-30-00
+
+        if (!user) return `report_${ts}`;
+
+        if (user.role === "CUSTOMER") {
+            const cname = getCustomerNameFromReportJson(report) || user.username || `customer_${report.customerId}`;
+            return `${slugify(cname)}_${ts}`;
+        }
+
+        // EMPLOYEE / ADMIN
+        const empId = user.id ?? user.username ?? "employee";
+        const custId = report?.customerId ?? "unknownCustomer";
+        return `customer_${slugify(custId)}_employee_${slugify(empId)}_${ts}`;
+    }
+
+    // ----- JSON renderer (tables within tables) -----
+    function renderJsonAsNarrative(json) {
+        const container = document.createElement("div");
+
+        if (!json || typeof json !== "object") {
+            container.textContent = "No structured data available.";
+            return container;
+        }
+
+        const modules = json.modules || json;
+
+        Object.entries(modules).forEach(([sectionName, sectionData]) => {
+            const section = document.createElement("section");
+            section.style.marginBottom = "24px";
+
+            // Section title
+            const title = document.createElement("h2");
+            title.textContent = sectionName.replace(/_/g, " ");
+            title.style.borderBottom = "1px solid var(--border)";
+            title.style.paddingBottom = "6px";
+            title.style.marginBottom = "10px";
+            section.appendChild(title);
+
+            // Render section content
+            renderSectionContent(section, sectionData);
+
+            container.appendChild(section);
+        });
+
+        return container;
+    }
+
+    // ----- mapping for your schema -----
+    function extractReport(row) {
+        return {
+            runId: row.run_id ?? null,
+            customerId: row.customer_id != null ? String(row.customer_id) : "",
+            generatedAt: row.generated_at != null ? String(row.generated_at) : "",
+            json: row.json_doc ?? "",
+            xml: row.xml_doc ?? "",
+        };
+    }
+
+    // ----- module switching -----
+    function setActiveModule(module) {
+        currentModule = module;
+
+        // sidebar active state
+        [elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw].forEach((b) => b.classList.remove("active"));
+        if (module === "customer_reports") elModuleCustomer.classList.add("active");
+        if (module === "json_raw") elModuleJsonRaw.classList.add("active");
+        if (module === "xml_raw") elModuleXmlRaw.classList.add("active");
+
+        // page titles
+        if (module === "customer_reports") {
+            elPageTitle.textContent = "Customer Reports";
+            elPageSub.textContent = "Structured view (tables, nested sections)";
+        } else if (module === "json_raw") {
+            elPageTitle.textContent = "JSON Raw";
+            elPageSub.textContent = "Debug view (pretty printed)";
+        } else {
+            elPageTitle.textContent = "XML Raw";
+            elPageSub.textContent = "Debug view (pretty printed)";
+        }
+
+        render();
+    }
+
+    // ----- main render (based on module + mode) -----
+    function render() {
+        clearRender();
+        setError("");
+
+        if (!currentReport) {
+            setStatus("No report loaded yet.");
+            setLabels({ customerId: "-", generatedAt: "-", runId: "-" });
+            return;
+        }
+
+        setStatus("Report ready.");
+        setLabels(currentReport);
+
+        // Decide what to show based on module + mode
+        const parsed = safeJsonParse(currentReport.json);
+
+        // Default display: structured JSON for customer_reports
+        if (currentModule === "customer_reports") {
+            if (currentMode === "JSON") {
+                elXmlContainer.style.display = "none";
+                elJsonContainer.style.display = "";
+
+                if (!parsed) {
+                    elJsonContainer.appendChild(
+                        h("div", { class: "details" }, [
+                            h("div", { style: "color:var(--danger);font-weight:700;" }, ["Invalid JSON"]),
+                            h("pre", { class: "code", style: "margin-top:10px;" }, [String(currentReport.json ?? "")]),
+                        ])
+                    );
+                    return;
+                }
+
+                elJsonContainer.appendChild(renderJsonNode(parsed));
+            } else {
+                elJsonContainer.style.display = "none";
+                elXmlContainer.style.display = "";
+                elXmlContainer.textContent = prettyXml(currentReport.xml);
+            }
+            return;
+        }
+
+        // Debug modules
+        if (currentModule === "json_raw") {
+            elXmlContainer.style.display = "none";
+            elJsonContainer.style.display = "";
+            elJsonContainer.appendChild(
+                h("pre", { class: "code" }, [parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "")])
+            );
+            return;
+        }
+
+        if (currentModule === "xml_raw") {
+            elJsonContainer.style.display = "none";
+            elXmlContainer.style.display = "";
+            elXmlContainer.textContent = prettyXml(currentReport.xml);
+            return;
+        }
+    }
+
+    // ----- loading -----
     async function loadCustomerListOrSelf() {
         setError("");
         setStatus("Loading...");
 
         const user = getStoredUser();
-        const token = getToken();
-        if (!user || !token) {
+        if (!user || !getToken()) {
             logoutToLogin();
             return;
         }
 
-        // CUSTOMER: no dropdown; load own report through customer endpoint (preferred)
+        // sidebar session
+        elSideUser.textContent = user.username ?? "-";
+        elSideRole.textContent = user.role ?? "-";
+        elSideCustomer.textContent = user.customer_id ?? "-";
+
+        // CUSTOMER: hide select + load own latest report
         if (user.role === "CUSTOMER") {
-            if (elCustomerSelect) elCustomerSelect.style.display = "none";
-            if (elReloadBtn) elReloadBtn.style.display = "none";
+            elCustomerSelect.style.display = "none";
+            elReloadBtn.style.display = "none";
 
-            try {
-                // Preferred secure endpoint (uses customer_id from JWT)
-                const res = await apiFetch("/customer/reports");
-                const rows = await res.json();
-
-                if (!Array.isArray(rows) || rows.length === 0) {
-                    setStatus("");
-                    setError("No reports found for your customer.");
-                    currentReport = null;
-                    render();
-                    return;
-                }
-
-                // choose latest (already ordered in backend; but still safe)
-                const latest = extractReportPayload(rows[0]);
-                currentReport = latest;
-                currentMode = "JSON";
-                setStatus("Loaded your latest report.");
+            const res = await apiFetch("/customer/reports");
+            const rows = await res.json();
+            if (!Array.isArray(rows) || rows.length === 0) {
+                currentReport = null;
+                setStatus("");
+                setError("No reports found for your customer.");
                 render();
-            } catch (e) {
-                setStatus("");
-                setError(String(e));
-            }
-
-            return;
-        }
-
-        // EMPLOYEE/ADMIN: populate dropdown from /customers
-        try {
-            if (!elCustomerSelect) {
-                setStatus("");
-                setError("UI error: customer dropdown element not found (customerSelect).");
                 return;
             }
 
-            const res = await apiFetch("/customers");
-            const customers = await res.json();
-
-            elCustomerSelect.innerHTML = "";
-            const placeholder = document.createElement("option");
-            placeholder.value = "";
-            placeholder.textContent = "Select customer...";
-            elCustomerSelect.appendChild(placeholder);
-
-            (customers || []).forEach((c) => {
-                const id = c.customer_id ?? c.customerId ?? c.id;
-                if (id == null) return;
-                const opt = document.createElement("option");
-                opt.value = String(id);
-                opt.textContent = String(id);
-                elCustomerSelect.appendChild(opt);
-            });
-
-            setStatus("Customer list loaded.");
-        } catch (e) {
-            setStatus("");
-            setError(String(e));
+            currentReport = extractReport(rows[0]);
+            setStatus("Loaded your latest report.");
+            render();
+            return;
         }
+
+        // EMPLOYEE/ADMIN
+        elCustomerSelect.style.display = "";
+        elReloadBtn.style.display = "";
+
+        const res = await apiFetch("/customers");
+        const customers = await res.json();
+
+        elCustomerSelect.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Select customer...";
+        elCustomerSelect.appendChild(placeholder);
+
+        (customers || []).forEach((c) => {
+            const id = c.customer_id;
+            if (id == null) return;
+            const opt = document.createElement("option");
+            opt.value = String(id);
+            opt.textContent = String(id);
+            elCustomerSelect.appendChild(opt);
+        });
+
+        setStatus("Customer list loaded. Select a customer and Load Report.");
     }
 
     async function loadSelectedCustomerReport() {
@@ -325,22 +406,14 @@
         setStatus("Loading report...");
 
         const user = getStoredUser();
-        const token = getToken();
-        if (!user || !token) {
+        if (!user || !getToken()) {
             logoutToLogin();
             return;
         }
 
-        // CUSTOMER: ignore dropdown and load self
+        // CUSTOMER: reload self
         if (user.role === "CUSTOMER") {
             await loadCustomerListOrSelf();
-            return;
-        }
-
-        // EMPLOYEE/ADMIN: must have dropdown selection
-        if (!elCustomerSelect) {
-            setStatus("");
-            setError("UI error: customer dropdown element not found (customerSelect).");
             return;
         }
 
@@ -351,39 +424,89 @@
             return;
         }
 
-        try {
-            // This assumes your existing backend endpoint returns one row for that customer
-            // (or latest) including JSON/XML.
-            const res = await apiFetch(`/customers/${encodeURIComponent(customerId)}`);
-            const row = await res.json();
+        const res = await apiFetch(`/customers/${encodeURIComponent(customerId)}`);
+        const row = await res.json();
 
-            // Some backends return { ... } or [ ... ] — support both.
-            const picked = Array.isArray(row) ? row[0] : row;
-            currentReport = extractReportPayload(picked);
+        currentReport = extractReport(row);
+        setStatus(`Loaded report for customer_id=${customerId}.`);
+        render();
+    }
+
+    // ----- events -----
+    function hookEvents() {
+        elThemeBtn.addEventListener("click", toggleTheme);
+
+        elModuleCustomer.addEventListener("click", () => setActiveModule("customer_reports"));
+        elModuleJsonRaw.addEventListener("click", () => setActiveModule("json_raw"));
+        elModuleXmlRaw.addEventListener("click", () => setActiveModule("xml_raw"));
+
+        elBtnJson.addEventListener("click", () => {
             currentMode = "JSON";
-            setStatus(`Loaded report for customer_id=${customerId}.`);
+            elBtnJson.classList.add("active");
+            elBtnXml.classList.remove("active");
             render();
-        } catch (e) {
-            setStatus("");
-            setError(String(e));
+        });
+
+        elBtnXml.addEventListener("click", () => {
+            currentMode = "XML";
+            elBtnXml.classList.add("active");
+            elBtnJson.classList.remove("active");
+            render();
+        });
+
+        elReloadBtn.addEventListener("click", loadCustomerListOrSelf);
+        elLoadBtn.addEventListener("click", loadSelectedCustomerReport);
+
+        elLogoutBtn.addEventListener("click", logoutToLogin);
+
+        elDownloadJson.addEventListener("click", () => {
+            if (!currentReport) return;
+            const parsed = safeJsonParse(currentReport.json);
+            const content = parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "");
+            const base = buildBaseFilename(currentReport);
+            downloadText(`${base}.json`, content, "application/json");
+        });
+
+        elDownloadXml.addEventListener("click", () => {
+            if (!currentReport) return;
+            const base = buildBaseFilename(currentReport);
+            downloadText(`${base}.xml`, String(currentReport.xml ?? ""), "application/xml");
+        });
+
+        const elPrintBtn = $("printBtn");
+        if (elPrintBtn) {
+            elPrintBtn.addEventListener("click", () => {
+                if (!currentReport) return;
+
+                // Expand all details so nested tables appear in PDF
+                document.querySelectorAll("details").forEach((d) => (d.open = true));
+
+                // Set PDF filename suggestion (browser uses the page title)
+                const base = buildBaseFilename(currentReport);
+                const oldTitle = document.title;
+                document.title = base;
+
+                setTimeout(() => {
+                    window.print();
+                    // Restore after print dialog opens
+                    setTimeout(() => (document.title = oldTitle), 300);
+                }, 80);
+            });
         }
     }
 
-    // ----- boot -----
     async function boot() {
-        hookButtons();
+        const theme = localStorage.getItem("ecs_theme") || "light";
+        setTheme(theme);
 
-        // If you want to force auth to view viewer.html, keep this:
         if (!getToken()) {
             window.location.href = "login.html";
             return;
         }
 
-        // initial load:
+        hookEvents();
+        setActiveModule("customer_reports");
         await loadCustomerListOrSelf();
-
-        // initial render placeholder:
-        if (!currentReport) render();
     }
 
     document.addEventListener("DOMContentLoaded", () => {

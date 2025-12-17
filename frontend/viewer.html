@@ -1,67 +1,109 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Customer Reports Viewer</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>Reports Viewer — EUR COM SUITE</title>
+    <link rel="stylesheet" href="styles.css?v=101" />
 </head>
 
 <body>
-    <header style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:18px;">
-        <div>
-            <h2 style="margin:0;">Customer Reports</h2>
-            <div style="opacity:.8;">Unified JSON &amp; XML per customer</div>
-        </div>
-
-        <div style="display:flex;align-items:center;gap:10px;">
-            <div style="display:flex;flex-direction:column;gap:4px;">
-                <div style="font-size:12px;opacity:.8;">Customer</div>
-                <select id="customerSelect" style="min-width:180px;"></select>
-            </div>
-            <button id="reloadBtn">Reload</button>
-            <button id="loadBtn">Load Report</button>
-            <button id="logoutBtn">Logout</button>
-        </div>
-    </header>
-
-    <main style="padding:18px;">
-        <div style="border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-                <div style="display:flex;gap:18px;flex-wrap:wrap;">
-                    <div><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
-                    <div><b>AsOfDate:</b> <span id="asOfDateLabel">-</span></div>
-                    <div><b>ExtractionDate:</b> <span id="extractionDateLabel">-</span></div>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div>
+                    <div class="brand-title">EUR COM SUITE</div>
+                    <div class="brand-sub">Reports Portal</div>
                 </div>
+                <button id="themeBtn" class="btn" title="Toggle theme">🌗</button>
+            </div>
 
-                <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <button id="btnJson">JSON</button>
-                    <button id="btnXml">XML</button>
-                    <button id="downloadJsonBtn">Download JSON</button>
-                    <button id="downloadXmlBtn">Download XML</button>
+            <div class="side-section">
+                <div class="side-title">Report modules</div>
+                <div class="nav">
+                    <button class="active" data-module="customer_reports" id="module_customer_reports">
+                        Customer Reports
+                    </button>
+                    <button data-module="json_raw" id="module_json_raw">
+                        JSON Raw (Debug)
+                    </button>
+                    <button data-module="xml_raw" id="module_xml_raw">
+                        XML Raw (Debug)
+                    </button>
                 </div>
             </div>
 
-            <div id="statusMessage" style="margin-top:10px;opacity:.85;"></div>
-            <div id="errorMessage" style="margin-top:8px;color:#ff6b6b;white-space:pre-wrap;"></div>
+            <div class="side-section">
+                <div class="side-title">Session</div>
+                <div class="kv">
+                    <div class="kv-row">
+                        <div class="kv-key">User</div>
+                        <div class="kv-val" id="sideUser">-</div>
+                    </div>
+                    <div class="kv-row">
+                        <div class="kv-key">Role</div>
+                        <div class="kv-val" id="sideRole">-</div>
+                    </div>
+                    <div class="kv-row">
+                        <div class="kv-key">Customer</div>
+                        <div class="kv-val" id="sideCustomer">-</div>
+                    </div>
+                </div>
+            </div>
 
-            <pre id="codeArea"
-                style="margin-top:12px;min-height:320px;border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.12);overflow:auto;"></pre>
-        </div>
-    </main>
+            <div class="side-section">
+                <div class="side-title">Actions</div>
+                <div class="nav">
+                    <button id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </aside>
 
-    <script>
-        // Basic logout hook here so it works even if JS fails later
-        document.getElementById("logoutBtn").addEventListener("click", () => {
-            localStorage.removeItem("ecs_token");
-            localStorage.removeItem("ecs_user");
-            window.location.href = "login.html";
-        });
-    </script>
+        <!-- Main -->
+        <main class="main">
+            <div class="topbar">
+                <div>
+                    <h1 class="h1" id="pageTitle">Customer Reports</h1>
+                    <div class="sub" id="pageSub">Unified JSON & XML per customer</div>
+                </div>
 
-    <!-- IMPORTANT: cache-bust to force browser to load the NEW app.js -->
-    <script src="app.js?v=3"></script>
+                <div class="actions">
+                    <select id="customerSelect" class="btn" style="min-width:200px;"></select>
+                    <button id="reloadBtn" class="btn">Reload</button>
+                    <button id="loadBtn" class="btn primary">Load Report</button>
+                </div>
+            </div>
+
+            <section class="card">
+                <div class="row">
+                    <div class="pill"><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
+                    <div class="pill"><b>Generated:</b> <span id="asOfDateLabel">-</span></div>
+                    <div class="pill"><b>Run:</b> <span id="runIdLabel">-</span></div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="segment">
+                        <button id="btnJson" class="active">JSON</button>
+                        <button id="btnXml">XML</button>
+                    </div>
+                    <button id="downloadJsonBtn" class="btn">Download JSON</button>
+                    <button id="downloadXmlBtn" class="btn">Download XML</button>
+                    <button id="printBtn" class="btn">Print / Save PDF</button>
+                </div>
+
+                <div id="statusMessage" class="status"></div>
+                <div id="errorMessage" class="error"></div>
+
+                <!-- Render area -->
+                <div id="jsonContainer" style="margin-top:12px;"></div>
+                <pre id="xmlContainer" class="code" style="display:none;margin-top:12px;"></pre>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js?v=101"></script>
 </body>
 
 </html>
