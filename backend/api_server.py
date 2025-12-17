@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
 import json
 
-DB_PATH = r"C:\Users\mchou\Desktop\Matthaios MatCho Chouliaras\EUR_COM_SUITE\database\MCH_DB.db"
+DB_PATH = r"link to the Database"
 
 app = FastAPI()
 
@@ -66,3 +66,4 @@ def customer_report(customer_id: int):
         "finalJson": final_json,
         "finalXml": row["xml_doc"],
     }
+
