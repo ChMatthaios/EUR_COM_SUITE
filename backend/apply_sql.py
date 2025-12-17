@@ -2,7 +2,7 @@ from pathlib import Path
 import sqlite3
 
 BASE = Path(__file__).resolve().parent.parent
-DB_PATH = BASE / "database" / "MCH_DB.db"
+DB_PATH = BASE / "database" / "ABCDEF.db"
 SQL_PATH = Path(__file__).resolve().parent / "sql" / "001_auth.sql"
 
 print("DB:", DB_PATH)
@@ -23,3 +23,4 @@ try:
         print("\nSchema:\n", row[1])
 finally:
     conn.close()
+
