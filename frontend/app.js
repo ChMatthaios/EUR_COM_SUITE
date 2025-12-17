@@ -1,10 +1,8 @@
-// frontend/app.js
 (() => {
     const API_BASE = "http://127.0.0.1:8000/api";
-
-    // ----- DOM -----
     const $ = (id) => document.getElementById(id);
 
+    // DOM (safe getters)
     const elThemeBtn = $("themeBtn");
 
     const elModuleCustomer = $("module_customer_reports");
@@ -27,7 +25,7 @@
     const elStatus = $("statusMessage");
 
     const elCustomerIdLabel = $("customerIdLabel");
-    const elAsOfDateLabel = $("asOfDateLabel");
+    const elGeneratedAtLabel = $("generatedAtLabel");
     const elRunIdLabel = $("runIdLabel");
 
     const elBtnJson = $("btnJson");
@@ -37,20 +35,36 @@
     const elDownloadXml = $("downloadXmlBtn");
     const elPrintBtn = $("printBtn");
 
-    const elJsonContainer = $("jsonContainer");
-    const elXmlContainer = $("xmlContainer");
+    const elNarrative = $("narrativeContainer");
+    const elRaw = $("rawContainer");
 
-    // ----- auth helpers -----
-    function getToken() {
-        return localStorage.getItem("ecs_token");
+    // State
+    let currentMode = "JSON";
+    let currentModule = "customer_reports";
+    let currentReport = null;
+
+    // If critical elements are missing, show a clear error instead of silent failure
+    function assertDom() {
+        const required = [
+            elPageTitle, elCustomerSelect, elLoadBtn, elLogoutBtn,
+            elNarrative, elRaw, elError, elStatus,
+            elBtnJson, elBtnXml, elDownloadJson, elDownloadXml, elPrintBtn,
+            elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw
+        ];
+        const ok = required.every(Boolean);
+        if (!ok) {
+            console.error("Viewer DOM is missing required elements. Check viewer.html ids.");
+            alert("UI failed to initialize: missing required DOM elements. Check viewer.html ids.");
+        }
+        return ok;
     }
 
+    // Auth
+    function getToken() { return localStorage.getItem("ecs_token"); }
+
     function getStoredUser() {
-        try {
-            return JSON.parse(localStorage.getItem("ecs_user") || "null");
-        } catch {
-            return null;
-        }
+        try { return JSON.parse(localStorage.getItem("ecs_user") || "null"); }
+        catch { return null; }
     }
 
     function logoutToLogin() {
@@ -68,8 +82,8 @@
         const res = await fetch(`${API_BASE}${path}`, {
             ...options,
             headers: authHeaders(options.headers || {}),
+            cache: "no-store",
         });
-
         if (res.status === 401) {
             logoutToLogin();
             throw new Error("Unauthorized (missing/expired token)");
@@ -77,26 +91,19 @@
         return res;
     }
 
-    // ----- state -----
-    let currentMode = "JSON"; // JSON or XML
-    let currentModule = "customer_reports"; // customer_reports | json_raw | xml_raw
-    let currentReport = null;
+    // UI helpers
+    function setError(msg) { if (elError) elError.textContent = msg || ""; }
+    function setStatus(msg) { if (elStatus) elStatus.textContent = msg || ""; }
 
-    // ----- UI helpers -----
-    function setError(msg) {
-        elError.textContent = msg || "";
+    function setLabels(report) {
+        if (elCustomerIdLabel) elCustomerIdLabel.textContent = report?.customerId ?? "-";
+        if (elGeneratedAtLabel) elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
+        if (elRunIdLabel) elRunIdLabel.textContent = report?.runId ?? "-";
     }
-    function setStatus(msg) {
-        elStatus.textContent = msg || "";
-    }
-    function setLabels({ customerId, generatedAt, runId }) {
-        elCustomerIdLabel.textContent = customerId ?? "-";
-        elAsOfDateLabel.textContent = generatedAt ?? "-";
-        elRunIdLabel.textContent = runId ?? "-";
-    }
+
     function clearRender() {
-        elJsonContainer.innerHTML = "";
-        elXmlContainer.textContent = "";
+        if (elNarrative) elNarrative.innerHTML = "";
+        if (elRaw) elRaw.textContent = "";
     }
 
     function setTheme(theme) {
@@ -108,34 +115,10 @@
         setTheme(cur === "light" ? "dark" : "light");
     }
 
-    function h(tag, attrs = {}, children = []) {
-        const el = document.createElement(tag);
-        for (const [k, v] of Object.entries(attrs)) {
-            if (k === "class") el.className = v;
-            else if (k === "style") el.style.cssText = v;
-            else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
-            else el.setAttribute(k, v);
-        }
-        for (const c of children) {
-            if (c == null) continue;
-            if (typeof c === "string") el.appendChild(document.createTextNode(c));
-            else el.appendChild(c);
-        }
-        return el;
-    }
-
-    function isPlainObject(x) {
-        return x && typeof x === "object" && !Array.isArray(x);
-    }
-
     function safeJsonParse(maybeJson) {
         if (maybeJson == null) return null;
         if (typeof maybeJson === "object") return maybeJson;
-        try {
-            return JSON.parse(String(maybeJson));
-        } catch {
-            return null;
-        }
+        try { return JSON.parse(String(maybeJson)); } catch { return null; }
     }
 
     function prettyXml(xml) {
@@ -144,23 +127,63 @@
             const reg = /(>)(<)(\/*)/g;
             let formatted = String(xml).replace(reg, "$1\r\n$2$3");
             let pad = 0;
-            return formatted
-                .split("\r\n")
-                .map((line) => {
-                    let indent = 0;
-                    if (line.match(/.+<\/\w[^>]*>$/)) indent = 0;
-                    else if (line.match(/^<\/\w/)) { if (pad !== 0) pad -= 1; }
-                    else if (line.match(/^<\w([^>]*[^/])?>.*$/)) indent = 1;
-                    else indent = 0;
-
-                    const out = PADDING.repeat(pad) + line;
-                    pad += indent;
-                    return out;
-                })
-                .join("\n");
+            return formatted.split("\r\n").map((line) => {
+                let indent = 0;
+                if (line.match(/.+<\/\w[^>]*>$/)) indent = 0;
+                else if (line.match(/^<\/\w/)) { if (pad !== 0) pad -= 1; }
+                else if (line.match(/^<\w([^>]*[^/])?>.*$/)) indent = 1;
+                const out = PADDING.repeat(pad) + line;
+                pad += indent;
+                return out;
+            }).join("\n");
         } catch {
             return String(xml ?? "");
         }
+    }
+
+    function extractReport(row) {
+        return {
+            runId: row?.run_id ?? null,
+            customerId: row?.customer_id != null ? String(row.customer_id) : "",
+            generatedAt: row?.generated_at != null ? String(row.generated_at) : "",
+            json: row?.json_doc ?? "",
+            xml: row?.xml_doc ?? "",
+        };
+    }
+
+    // Filename rules
+    function slugify(s) {
+        return String(s || "").trim().replace(/[\/\\:*?"<>|]/g, "").replace(/\s+/g, "_");
+    }
+    function isoStamp() {
+        return new Date().toISOString().replace(/[:]/g, "-").replace(/\..+$/, "");
+    }
+    function getCustomerNameFromReportJson(report) {
+        const parsed = safeJsonParse(report?.json);
+        const customer =
+            parsed?.modules?.CUSTOMER_PROFILE?.customer ||
+            parsed?.customer ||
+            parsed?.modules?.KYC?.customer ||
+            null;
+
+        const first = customer?.firstName || "";
+        const last = customer?.lastName || "";
+        const full = `${first} ${last}`.trim();
+        return full || null;
+    }
+    function buildBaseFilename(report) {
+        const user = getStoredUser();
+        const ts = isoStamp();
+        if (!user) return `report_${ts}`;
+
+        if (user.role === "CUSTOMER") {
+            const cname = getCustomerNameFromReportJson(report) || user.username || `customer_${report.customerId}`;
+            return `${slugify(cname)}_${ts}`;
+        }
+
+        const empId = user.id ?? user.username ?? "employee";
+        const custId = report?.customerId ?? "unknownCustomer";
+        return `customer_${slugify(custId)}_employee_${slugify(empId)}_${ts}`;
     }
 
     function downloadText(filename, content, mime) {
@@ -175,171 +198,213 @@
         URL.revokeObjectURL(url);
     }
 
-    function slugify(s) {
-        return String(s || "")
-            .trim()
-            .replace(/[\/\\:*?"<>|]/g, "")   // Windows illegal filename chars
-            .replace(/\s+/g, "_");
+    // Narrative renderers
+    function el(tag, className, text) {
+        const n = document.createElement(tag);
+        if (className) n.className = className;
+        if (text != null) n.textContent = String(text);
+        return n;
     }
 
-    function getCustomerNameFromReportJson(report) {
-        // Your JSON contains: customer.firstName / customer.lastName (seen in PDF) :contentReference[oaicite:3]{index=3}
-        const parsed = safeJsonParse(report?.json);
-        const customer = parsed?.modules?.CUSTOMER_PROFILE?.customer || parsed?.customer || null;
-
-        const first = customer?.firstName || "";
-        const last = customer?.lastName || "";
-        const full = `${first} ${last}`.trim();
-
-        return full || null;
+    function paragraph(k, v) {
+        const p = el("p", "p");
+        const key = el("span", "k", `${k}: `);
+        const val = document.createElement("span");
+        val.textContent = String(v ?? "");
+        p.appendChild(key);
+        p.appendChild(val);
+        return p;
     }
 
-    function buildBaseFilename(report) {
-        const user = getStoredUser();
-        const ts = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+$/, ""); // 2025-12-17T12-30-00
-
-        if (!user) return `report_${ts}`;
-
-        if (user.role === "CUSTOMER") {
-            const cname = getCustomerNameFromReportJson(report) || user.username || `customer_${report.customerId}`;
-            return `${slugify(cname)}_${ts}`;
+    function objectToOneLine(obj) {
+        if (!obj || typeof obj !== "object") return String(obj ?? "");
+        const parts = [];
+        for (const [k, v] of Object.entries(obj)) {
+            if (v === null || v === undefined) continue;
+            if (typeof v === "object") continue;
+            parts.push(`${k}=${v}`);
+            if (parts.length >= 10) break;
         }
-
-        // EMPLOYEE / ADMIN
-        const empId = user.id ?? user.username ?? "employee";
-        const custId = report?.customerId ?? "unknownCustomer";
-        return `customer_${slugify(custId)}_employee_${slugify(empId)}_${ts}`;
+        return parts.length ? parts.join(", ") : "(details)";
     }
 
-    // ----- JSON renderer (tables within tables) -----
-    function renderJsonAsNarrative(json) {
-        const container = document.createElement("div");
-
-        if (!json || typeof json !== "object") {
-            container.textContent = "No structured data available.";
-            return container;
+    function renderArrayAsParagraphs(parent, key, arr) {
+        if (!Array.isArray(arr) || arr.length === 0) {
+            parent.appendChild(paragraph(key, "No records available."));
+            return;
         }
+        parent.appendChild(paragraph(key, `Total records: ${arr.length}`));
 
-        const modules = json.modules || json;
-
-        Object.entries(modules).forEach(([sectionName, sectionData]) => {
-            const section = document.createElement("section");
-            section.style.marginBottom = "24px";
-
-            // Section title
-            const title = document.createElement("h2");
-            title.textContent = sectionName.replace(/_/g, " ");
-            title.style.borderBottom = "1px solid var(--border)";
-            title.style.paddingBottom = "6px";
-            title.style.marginBottom = "10px";
-            section.appendChild(title);
-
-            // Render section content
-            renderSectionContent(section, sectionData);
-
-            container.appendChild(section);
+        const ul = el("ul", "list");
+        const max = 30;
+        arr.slice(0, max).forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = (item && typeof item === "object") ? objectToOneLine(item) : String(item);
+            ul.appendChild(li);
         });
+        parent.appendChild(ul);
 
-        return container;
+        if (arr.length > max) parent.appendChild(paragraph("Note", `Showing first ${max} entries (PDF-friendly).`));
     }
 
-    // ----- mapping for your schema -----
-    function extractReport(row) {
-        return {
-            runId: row.run_id ?? null,
-            customerId: row.customer_id != null ? String(row.customer_id) : "",
-            generatedAt: row.generated_at != null ? String(row.generated_at) : "",
-            json: row.json_doc ?? "",
-            xml: row.xml_doc ?? "",
-        };
+    function renderObjectAsParagraphs(parent, obj) {
+        for (const [k, v] of Object.entries(obj || {})) {
+            if (Array.isArray(v)) renderArrayAsParagraphs(parent, k, v);
+            else if (v && typeof v === "object") {
+                const sub = el("h3", "", k.replace(/_/g, " "));
+                sub.style.margin = "14px 0 8px";
+                parent.appendChild(sub);
+                renderObjectAsParagraphs(parent, v);
+            } else parent.appendChild(paragraph(k, v));
+        }
     }
 
-    // ----- module switching -----
+    function renderJsonNarrative(parsedJson) {
+        const frag = document.createDocumentFragment();
+        const modules = (parsedJson?.modules && typeof parsedJson.modules === "object")
+            ? parsedJson.modules
+            : { REPORT: parsedJson };
+
+        for (const [sectionName, sectionData] of Object.entries(modules)) {
+            const sec = el("div", "section");
+            sec.appendChild(el("h2", "", sectionName.replace(/_/g, " ")));
+            sec.appendChild(el("div", "divider"));
+
+            if (Array.isArray(sectionData)) renderArrayAsParagraphs(sec, sectionName, sectionData);
+            else if (sectionData && typeof sectionData === "object") renderObjectAsParagraphs(sec, sectionData);
+            else sec.appendChild(paragraph(sectionName, sectionData));
+
+            frag.appendChild(sec);
+        }
+        return frag;
+    }
+
+    function xmlToNarrative(xmlString) {
+        const frag = document.createDocumentFragment();
+
+        let doc;
+        try {
+            doc = new DOMParser().parseFromString(String(xmlString || ""), "application/xml");
+            if (doc.querySelector("parsererror")) throw new Error("Invalid XML");
+        } catch {
+            const sec = el("div", "section");
+            sec.appendChild(el("h2", "", "XML"));
+            sec.appendChild(el("div", "divider"));
+            sec.appendChild(paragraph("Note", "Invalid XML. Showing raw:"));
+            sec.appendChild(el("pre", "code", String(xmlString || "")));
+            frag.appendChild(sec);
+            return frag;
+        }
+
+        const sec = el("div", "section");
+        sec.appendChild(el("h2", "", "XML (Narrative)"));
+        sec.appendChild(el("div", "divider"));
+
+        const lines = [];
+        function walk(node, path) {
+            if (node.nodeType !== 1) return;
+            const name = node.nodeName;
+            const newPath = path ? `${path}.${name}` : name;
+
+            if (node.attributes && node.attributes.length) {
+                for (const a of node.attributes) lines.push({ k: `${newPath}@${a.name}`, v: a.value });
+            }
+
+            const children = Array.from(node.children || []);
+            const text = (node.textContent || "").trim();
+
+            if (children.length === 0 && text) {
+                lines.push({ k: newPath, v: text });
+                return;
+            }
+            children.forEach((c) => walk(c, newPath));
+        }
+
+        walk(doc.documentElement, "");
+
+        const max = 250;
+        lines.slice(0, max).forEach(({ k, v }) => sec.appendChild(paragraph(k, v)));
+        if (lines.length > max) sec.appendChild(paragraph("Note", `Showing first ${max} lines (PDF-friendly).`));
+
+        frag.appendChild(sec);
+        return frag;
+    }
+
+    // Modules
     function setActiveModule(module) {
         currentModule = module;
-
-        // sidebar active state
         [elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw].forEach((b) => b.classList.remove("active"));
         if (module === "customer_reports") elModuleCustomer.classList.add("active");
         if (module === "json_raw") elModuleJsonRaw.classList.add("active");
         if (module === "xml_raw") elModuleXmlRaw.classList.add("active");
 
-        // page titles
         if (module === "customer_reports") {
             elPageTitle.textContent = "Customer Reports";
-            elPageSub.textContent = "Structured view (tables, nested sections)";
+            elPageSub.textContent = "Readable narrative view (paragraphs) — PDF-ready";
         } else if (module === "json_raw") {
-            elPageTitle.textContent = "JSON Raw";
-            elPageSub.textContent = "Debug view (pretty printed)";
+            elPageTitle.textContent = "JSON Raw (Debug)";
+            elPageSub.textContent = "Pretty printed JSON text";
         } else {
-            elPageTitle.textContent = "XML Raw";
-            elPageSub.textContent = "Debug view (pretty printed)";
+            elPageTitle.textContent = "XML Raw (Debug)";
+            elPageSub.textContent = "Pretty printed XML text";
         }
-
         render();
     }
 
-    // ----- main render (based on module + mode) -----
     function render() {
         clearRender();
         setError("");
 
         if (!currentReport) {
+            setLabels(null);
             setStatus("No report loaded yet.");
-            setLabels({ customerId: "-", generatedAt: "-", runId: "-" });
+            elNarrative.innerHTML = '<div class="p" style="opacity:.8;">Load a report to view.</div>';
+            elNarrative.style.display = "";
+            elRaw.style.display = "none";
             return;
         }
 
-        setStatus("Report ready.");
         setLabels(currentReport);
 
-        // Decide what to show based on module + mode
-        const parsed = safeJsonParse(currentReport.json);
-
-        // Default display: structured JSON for customer_reports
-        if (currentModule === "customer_reports") {
-            if (currentMode === "JSON") {
-                elXmlContainer.style.display = "none";
-                elJsonContainer.style.display = "";
-
-                if (!parsed) {
-                    elJsonContainer.appendChild(
-                        h("div", { class: "details" }, [
-                            h("div", { style: "color:var(--danger);font-weight:700;" }, ["Invalid JSON"]),
-                            h("pre", { class: "code", style: "margin-top:10px;" }, [String(currentReport.json ?? "")]),
-                        ])
-                    );
-                    return;
-                }
-
-                elJsonContainer.appendChild(renderJsonNode(parsed));
-            } else {
-                elJsonContainer.style.display = "none";
-                elXmlContainer.style.display = "";
-                elXmlContainer.textContent = prettyXml(currentReport.xml);
-            }
-            return;
-        }
-
-        // Debug modules
         if (currentModule === "json_raw") {
-            elXmlContainer.style.display = "none";
-            elJsonContainer.style.display = "";
-            elJsonContainer.appendChild(
-                h("pre", { class: "code" }, [parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "")])
-            );
+            elNarrative.style.display = "none";
+            elRaw.style.display = "";
+            const parsed = safeJsonParse(currentReport.json);
+            elRaw.textContent = parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "");
+            setStatus("Raw JSON view.");
             return;
         }
 
         if (currentModule === "xml_raw") {
-            elJsonContainer.style.display = "none";
-            elXmlContainer.style.display = "";
-            elXmlContainer.textContent = prettyXml(currentReport.xml);
+            elNarrative.style.display = "none";
+            elRaw.style.display = "";
+            elRaw.textContent = prettyXml(currentReport.xml);
+            setStatus("Raw XML view.");
             return;
         }
+
+        // Narrative module
+        elNarrative.style.display = "";
+        elRaw.style.display = "none";
+
+        if (currentMode === "JSON") {
+            const parsed = safeJsonParse(currentReport.json);
+            if (!parsed) {
+                setStatus("Invalid JSON — showing raw.");
+                elNarrative.appendChild(el("div", "section"));
+                elNarrative.appendChild(el("pre", "code", String(currentReport.json ?? "")));
+                return;
+            }
+            setStatus("Narrative JSON view (PDF-ready).");
+            elNarrative.appendChild(renderJsonNarrative(parsed));
+            return;
+        }
+
+        setStatus("Narrative XML view (PDF-ready).");
+        elNarrative.appendChild(xmlToNarrative(currentReport.xml));
     }
 
-    // ----- loading -----
+    // Loading
     async function loadCustomerListOrSelf() {
         setError("");
         setStatus("Loading...");
@@ -350,18 +415,17 @@
             return;
         }
 
-        // sidebar session
         elSideUser.textContent = user.username ?? "-";
         elSideRole.textContent = user.role ?? "-";
         elSideCustomer.textContent = user.customer_id ?? "-";
 
-        // CUSTOMER: hide select + load own latest report
         if (user.role === "CUSTOMER") {
             elCustomerSelect.style.display = "none";
             elReloadBtn.style.display = "none";
 
             const res = await apiFetch("/customer/reports");
             const rows = await res.json();
+
             if (!Array.isArray(rows) || rows.length === 0) {
                 currentReport = null;
                 setStatus("");
@@ -376,7 +440,6 @@
             return;
         }
 
-        // EMPLOYEE/ADMIN
         elCustomerSelect.style.display = "";
         elReloadBtn.style.display = "";
 
@@ -411,7 +474,6 @@
             return;
         }
 
-        // CUSTOMER: reload self
         if (user.role === "CUSTOMER") {
             await loadCustomerListOrSelf();
             return;
@@ -432,7 +494,7 @@
         render();
     }
 
-    // ----- events -----
+    // Events
     function hookEvents() {
         elThemeBtn.addEventListener("click", toggleTheme);
 
@@ -463,39 +525,31 @@
             if (!currentReport) return;
             const parsed = safeJsonParse(currentReport.json);
             const content = parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "");
-            const base = buildBaseFilename(currentReport);
-            downloadText(`${base}.json`, content, "application/json");
+            downloadText(`${buildBaseFilename(currentReport)}.json`, content, "application/json");
         });
 
         elDownloadXml.addEventListener("click", () => {
             if (!currentReport) return;
-            const base = buildBaseFilename(currentReport);
-            downloadText(`${base}.xml`, String(currentReport.xml ?? ""), "application/xml");
+            downloadText(`${buildBaseFilename(currentReport)}.xml`, String(currentReport.xml ?? ""), "application/xml");
         });
 
-        const elPrintBtn = $("printBtn");
-        if (elPrintBtn) {
-            elPrintBtn.addEventListener("click", () => {
-                if (!currentReport) return;
+        elPrintBtn.addEventListener("click", () => {
+            if (!currentReport) return;
+            const base = buildBaseFilename(currentReport);
 
-                // Expand all details so nested tables appear in PDF
-                document.querySelectorAll("details").forEach((d) => (d.open = true));
+            const oldTitle = document.title;
+            document.title = base;
 
-                // Set PDF filename suggestion (browser uses the page title)
-                const base = buildBaseFilename(currentReport);
-                const oldTitle = document.title;
-                document.title = base;
-
-                setTimeout(() => {
-                    window.print();
-                    // Restore after print dialog opens
-                    setTimeout(() => (document.title = oldTitle), 300);
-                }, 80);
-            });
-        }
+            setTimeout(() => {
+                window.print();
+                setTimeout(() => (document.title = oldTitle), 300);
+            }, 80);
+        });
     }
 
     async function boot() {
+        if (!assertDom()) return;
+
         const theme = localStorage.getItem("ecs_theme") || "light";
         setTheme(theme);
 
@@ -509,7 +563,8 @@
         await loadCustomerListOrSelf();
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
+    // ✅ This script is loaded after DOM in viewer.html loader, but keep this safe anyway
+    window.addEventListener("DOMContentLoaded", () => {
         boot().catch((e) => setError(String(e)));
     });
 })();

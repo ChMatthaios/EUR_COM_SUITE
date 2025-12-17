@@ -4,20 +4,27 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <!-- Soft no-cache hints (server headers are best, but this helps) -->
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <title>Reports Viewer — EUR COM SUITE</title>
-    <link rel="stylesheet" href="styles.css?v=101" />
+
+    <!-- Load CSS normally (we will cache-bust it safely below) -->
+    <link id="appCss" rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
     <div class="container">
-        <!-- Sidebar -->
         <aside class="sidebar">
             <div class="brand">
                 <div>
                     <div class="brand-title">EUR COM SUITE</div>
                     <div class="brand-sub">Reports Portal</div>
                 </div>
-                <button id="themeBtn" class="btn" title="Toggle theme">🌗</button>
+                <button id="themeBtn" class="btn icon" title="Toggle theme">🌗</button>
             </div>
 
             <div class="side-section">
@@ -25,12 +32,17 @@
                 <div class="nav">
                     <button class="active" data-module="customer_reports" id="module_customer_reports">
                         Customer Reports
+                        <span class="nav-sub">Narrative / PDF-ready</span>
                     </button>
+
                     <button data-module="json_raw" id="module_json_raw">
                         JSON Raw (Debug)
+                        <span class="nav-sub">Pretty JSON text</span>
                     </button>
+
                     <button data-module="xml_raw" id="module_xml_raw">
                         XML Raw (Debug)
+                        <span class="nav-sub">Pretty XML text</span>
                     </button>
                 </div>
             </div>
@@ -61,25 +73,24 @@
             </div>
         </aside>
 
-        <!-- Main -->
         <main class="main">
             <div class="topbar">
                 <div>
                     <h1 class="h1" id="pageTitle">Customer Reports</h1>
-                    <div class="sub" id="pageSub">Unified JSON & XML per customer</div>
+                    <div class="sub" id="pageSub">Readable narrative view (paragraphs) — PDF-ready</div>
                 </div>
 
                 <div class="actions">
-                    <select id="customerSelect" class="btn" style="min-width:200px;"></select>
+                    <select id="customerSelect" class="btn select" style="min-width:220px;"></select>
                     <button id="reloadBtn" class="btn">Reload</button>
                     <button id="loadBtn" class="btn primary">Load Report</button>
                 </div>
             </div>
 
             <section class="card">
-                <div class="row">
+                <div class="meta">
                     <div class="pill"><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
-                    <div class="pill"><b>Generated:</b> <span id="asOfDateLabel">-</span></div>
+                    <div class="pill"><b>Generated:</b> <span id="generatedAtLabel">-</span></div>
                     <div class="pill"><b>Run:</b> <span id="runIdLabel">-</span></div>
                 </div>
 
@@ -88,6 +99,7 @@
                         <button id="btnJson" class="active">JSON</button>
                         <button id="btnXml">XML</button>
                     </div>
+
                     <button id="downloadJsonBtn" class="btn">Download JSON</button>
                     <button id="downloadXmlBtn" class="btn">Download XML</button>
                     <button id="printBtn" class="btn">Print / Save PDF</button>
@@ -96,14 +108,27 @@
                 <div id="statusMessage" class="status"></div>
                 <div id="errorMessage" class="error"></div>
 
-                <!-- Render area -->
-                <div id="jsonContainer" style="margin-top:12px;"></div>
-                <pre id="xmlContainer" class="code" style="display:none;margin-top:12px;"></pre>
+                <div id="narrativeContainer" class="narrative"></div>
+                <pre id="rawContainer" class="code" style="display:none;"></pre>
             </section>
         </main>
     </div>
 
-    <script src="app.js?v=101"></script>
+    <!-- ✅ SAFE cache-busting loader: runs AFTER DOM exists -->
+    <script>
+        (function () {
+            const v = Date.now();
+
+            // Bust CSS cache
+            const css = document.getElementById("appCss");
+            if (css) css.href = "styles.css?v=" + v;
+
+            // Load JS AFTER DOM exists (do NOT use defer here)
+            const s = document.createElement("script");
+            s.src = "app.js?v=" + v;
+            document.body.appendChild(s);
+        })();
+    </script>
 </body>
 
 </html>
