@@ -5,7 +5,7 @@ from xml.sax.saxutils import escape as xml_escape
 from typing import Dict, List, Tuple, Optional, DefaultDict
 from collections import defaultdict
 
-DB_PATH = r"C:\Users\mchou\Desktop\Matthaios MatCho Chouliaras\EUR_COM_SUITE\database\MCH_DB.db"
+DB_PATH = r"Link to the Database"
 
 # Modules to generate
 MODULES_TO_RUN = [
@@ -1018,3 +1018,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
