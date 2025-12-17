@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Customer Reports Viewer</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <header class="bar">
+        <div class="left">
+            <h1>Customer Reports</h1>
+            <div class="sub">Unified JSON & XML per customer</div>
+        </div>
+
+        <div class="right">
+            <label class="label">
+                Customer
+                <select id="customerSelect"></select>
+            </label>
+
+            <button id="reloadBtn">Reload</button>
+            <button id="loadBtn">Load Report</button>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <section class="card">
+            <div class="row">
+                <div class="meta">
+                    <div><b>CustomerId:</b> <span id="custId">-</span></div>
+                    <div><b>AsOfDate:</b> <span id="asOfDate">-</span></div>
+                    <div><b>ExtractionDate:</b> <span id="extractionDate">-</span></div>
+                </div>
+
+                <div class="actions">
+                    <button id="showJsonBtn" class="active">JSON</button>
+                    <button id="showXmlBtn">XML</button>
+                    <button id="downloadJsonBtn">Download JSON</button>
+                    <button id="downloadXmlBtn">Download XML</button>
+                </div>
+            </div>
+
+            <div id="status" class="status"></div>
+
+            <pre id="output" class="output">// select a customer and click "Load Report"</pre>
+        </section>
+    </main>
+
+    <script src="./app.js"></script>
+</body>
+
+</html>
