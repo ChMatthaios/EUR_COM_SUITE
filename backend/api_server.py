@@ -32,7 +32,7 @@ app.add_middleware(
 # -----------------------------
 # Database configuration
 # -----------------------------
-DEFAULT_DB = Path(__file__).resolve().parent.parent / "database" / "MCH_DB.db"
+DEFAULT_DB = Path(__file__).resolve().parent.parent / "database" / "ABCDEF.db"
 DB_PATH = Path(os.getenv("EURCOM_DB_PATH", str(DEFAULT_DB))).expanduser().resolve()
 
 
@@ -268,3 +268,4 @@ def debug_customer_report_sample(user=Depends(require_customer)):
         return {"ok": True, "columns": list(data.keys()), "preview": preview}
     finally:
         conn.close()
+
