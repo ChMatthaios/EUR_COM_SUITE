@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <!-- Soft no-cache hints (server headers are best, but this helps) -->
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <title>Reports Viewer — EUR COM SUITE</title>
+
+    <!-- Load CSS normally (we will cache-bust it safely below) -->
+    <link id="appCss" rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="brand">
+                <div>
+                    <div class="brand-title">EUR COM SUITE</div>
+                    <div class="brand-sub">Reports Portal</div>
+                </div>
+                <button id="themeBtn" class="btn icon" title="Toggle theme">🌗</button>
+            </div>
+
+            <div class="side-section">
+                <div class="side-title">Report modules</div>
+                <div class="nav">
+                    <button class="active" data-module="customer_reports" id="module_customer_reports">
+                        Customer Reports
+                        <span class="nav-sub">Narrative / PDF-ready</span>
+                    </button>
+
+                    <button data-module="json_raw" id="module_json_raw">
+                        JSON Raw (Debug)
+                        <span class="nav-sub">Pretty JSON text</span>
+                    </button>
+
+                    <button data-module="xml_raw" id="module_xml_raw">
+                        XML Raw (Debug)
+                        <span class="nav-sub">Pretty XML text</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="side-section">
+                <div class="side-title">Session</div>
+                <div class="kv">
+                    <div class="kv-row">
+                        <div class="kv-key">User</div>
+                        <div class="kv-val" id="sideUser">-</div>
+                    </div>
+                    <div class="kv-row">
+                        <div class="kv-key">Role</div>
+                        <div class="kv-val" id="sideRole">-</div>
+                    </div>
+                    <div class="kv-row">
+                        <div class="kv-key">Customer</div>
+                        <div class="kv-val" id="sideCustomer">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-section">
+                <div class="side-title">Actions</div>
+                <div class="nav">
+                    <button id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <div class="topbar">
+                <div>
+                    <h1 class="h1" id="pageTitle">Customer Reports</h1>
+                    <div class="sub" id="pageSub">Readable narrative view (paragraphs) — PDF-ready</div>
+                </div>
+
+                <div class="actions">
+                    <select id="customerSelect" class="btn select" style="min-width:220px;"></select>
+                    <button id="reloadBtn" class="btn">Reload</button>
+                    <button id="loadBtn" class="btn primary">Load Report</button>
+                </div>
+            </div>
+
+            <section class="card">
+                <div class="meta">
+                    <div class="pill"><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
+                    <div class="pill"><b>Generated:</b> <span id="generatedAtLabel">-</span></div>
+                    <div class="pill"><b>Run:</b> <span id="runIdLabel">-</span></div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="segment">
+                        <button id="btnJson" class="active">JSON</button>
+                        <button id="btnXml">XML</button>
+                    </div>
+
+                    <button id="downloadJsonBtn" class="btn">Download JSON</button>
+                    <button id="downloadXmlBtn" class="btn">Download XML</button>
+                    <button id="printBtn" class="btn">Print / Save PDF</button>
+                </div>
+
+                <div id="statusMessage" class="status"></div>
+                <div id="errorMessage" class="error"></div>
+
+                <div id="narrativeContainer" class="narrative"></div>
+                <pre id="rawContainer" class="code" style="display:none;"></pre>
+            </section>
+        </main>
+    </div>
+
+    <!-- ✅ SAFE cache-busting loader: runs AFTER DOM exists -->
+    <script>
+        (function () {
+            const v = Date.now();
+
+            // Bust CSS cache
+            const css = document.getElementById("appCss");
+            if (css) css.href = "styles.css?v=" + v;
+
+            // Load JS AFTER DOM exists (do NOT use defer here)
+            const s = document.createElement("script");
+            s.src = "app.js?v=" + v;
+            document.body.appendChild(s);
+        })();
+    </script>
+</body>
+
+</html>

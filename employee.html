@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Employee Portal — EUR COM SUITE</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+        .wrap {
+            max-width: 900px;
+            margin: 24px auto;
+            padding: 16px
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 14px
+        }
+
+        button {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 0;
+            cursor: pointer
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="top">
+            <h2>Employee Portal</h2>
+            <div>
+                <button id="btnLogout">Logout</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="who"></div>
+            <div id="status"></div>
+        </div>
+
+        <div class="card">
+            <h3>Tools</h3>
+            <button id="btnGoViewer">Open Reports Viewer</button>
+            <p style="margin-top:10px;">(Next: customer search, case management, commissions dashboard.)</p>
+        </div>
+
+        <div class="card">
+            <h3>Debug</h3>
+            <pre id="debug"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000/api";
+
+        function logout() {
+            localStorage.removeItem("ecs_token");
+            localStorage.removeItem("ecs_user");
+            window.location.href = "login.html";
+        }
+
+        async function load() {
+            const token = localStorage.getItem("ecs_token");
+            if (!token) return logout();
+
+            const meRes = await fetch(`${API_BASE}/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!meRes.ok) return logout();
+
+            const me = await meRes.json();
+
+            // Guard: employees only
+            if (me.role === "CUSTOMER") {
+                window.location.href = "customer.html";
+                return;
+            }
+
+            document.getElementById("who").textContent = `Signed in as ${me.username} (${me.role})`;
+            document.getElementById("status").textContent = "Session OK.";
+            document.getElementById("debug").textContent = JSON.stringify(me, null, 2);
+        }
+
+        document.getElementById("btnLogout").addEventListener("click", logout);
+        document.getElementById("btnGoViewer").addEventListener("click", () => {
+            window.location.href = "viewer.html";
+        });
+
+        load().catch(err => {
+            document.getElementById("status").textContent = "Error: " + String(err);
+        });
+    </script>
+</body>
+
+</html>
