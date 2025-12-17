@@ -4,7 +4,7 @@ import sqlite3
 from auth_utils import hash_password
 
 BASE = Path(__file__).resolve().parent.parent
-DB_PATH = BASE / "database" / "MCH_DB.db"
+DB_PATH = BASE / "database" / "######.db"
 
 CUSTOMER_USERNAME = "customer1"
 CUSTOMER_PASSWORD = "Customer123!"
@@ -55,3 +55,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
