@@ -269,3 +269,51 @@ END;
 
 ANALYZE;
 VACUUM;
+
+-- Users for login
+CREATE TABLE IF NOT EXISTS ecs_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('CUSTOMER','EMPLOYEE','ADMIN')),
+  customer_id TEXT,                 -- filled only for CUSTOMER users (maps to your customer id)
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_login_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ecs_users_role ON ecs_users(role);
+CREATE INDEX IF NOT EXISTS idx_ecs_users_customer_id ON ecs_users(customer_id);
+
+-- ecs_employees definition
+
+CREATE TABLE ecs_employees (
+  employee_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  branch_id   INTEGER NOT NULL,
+  full_name   TEXT NOT NULL,
+  role        TEXT NOT NULL CHECK (role IN ('TELLER','MANAGER','BACKOFFICE')),
+  status      TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED','LEFT')),
+  hired_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (branch_id) REFERENCES ecs_branches(branch_id)
+);
+
+CREATE INDEX idx_employees_branch ON ecs_employees(branch_id);
+
+WITH digits(d) AS (VALUES(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+     nums(n) AS ( SELECT a.d + 10 * b.d + 100 * c.d + 1000 * d.d + 10000 * e.d AS n
+                    FROM digits a
+                   CROSS JOIN digits b
+                   CROSS JOIN digits c
+                   CROSS JOIN digits d
+                   CROSS JOIN digits e )
+INSERT INTO ecs_employees (branch_id, full_name, "role", status, hired_at)
+SELECT 1, 
+       'First' || n || ' Last' || n,
+       CASE WHEN (n % 2) = 0 THEN CASE WHEN n % 4 = 0 THEN 'TELLER' ELSE 'MANAGER' END ELSE 'BACKOFFICE' END,
+       'ACTIVE',
+       CASE
+         WHEN (n % 2) = 0 THEN CASE WHEN n % 4 = 0 THEN DATETIME ('now', '-10 years') ELSE DATETIME ('now', '-3 years') END
+         ELSE                  DATETIME ('now', '-5 years')
+       END
+  FROM nums
+ WHERE n < 400;

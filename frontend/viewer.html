@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Customer Reports Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <header style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:18px;">
+        <div>
+            <h2 style="margin:0;">Customer Reports</h2>
+            <div style="opacity:.8;">Unified JSON &amp; XML per customer</div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                <div style="font-size:12px;opacity:.8;">Customer</div>
+                <select id="customerSelect" style="min-width:180px;"></select>
+            </div>
+            <button id="reloadBtn">Reload</button>
+            <button id="loadBtn">Load Report</button>
+            <button id="logoutBtn">Logout</button>
+        </div>
+    </header>
+
+    <main style="padding:18px;">
+        <div style="border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;gap:18px;flex-wrap:wrap;">
+                    <div><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
+                    <div><b>AsOfDate:</b> <span id="asOfDateLabel">-</span></div>
+                    <div><b>ExtractionDate:</b> <span id="extractionDateLabel">-</span></div>
+                </div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button id="btnJson">JSON</button>
+                    <button id="btnXml">XML</button>
+                    <button id="downloadJsonBtn">Download JSON</button>
+                    <button id="downloadXmlBtn">Download XML</button>
+                </div>
+            </div>
+
+            <div id="statusMessage" style="margin-top:10px;opacity:.85;"></div>
+            <div id="errorMessage" style="margin-top:8px;color:#ff6b6b;white-space:pre-wrap;"></div>
+
+            <pre id="codeArea"
+                style="margin-top:12px;min-height:320px;border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.12);overflow:auto;"></pre>
+        </div>
+    </main>
+
+    <script>
+        // Basic logout hook here so it works even if JS fails later
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+            localStorage.removeItem("ecs_token");
+            localStorage.removeItem("ecs_user");
+            window.location.href = "login.html";
+        });
+    </script>
+
+    <!-- IMPORTANT: cache-bust to force browser to load the NEW app.js -->
+    <script src="app.js?v=3"></script>
+</body>
+
+</html>
