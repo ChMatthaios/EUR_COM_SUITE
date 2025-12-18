@@ -390,3 +390,198 @@ tr:hover td {
         padding: 0;
     }
 }
+
+/* ===== Viewer-specific (missing classes used by app.js) ===== */
+
+/* page header row */
+.ecs-pagehead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ecs-pagehead-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ecs-compact {
+    width: auto;
+    min-width: 220px;
+}
+
+/* sidebar buttons styled like Confluence nav */
+.ecs-nav-buttons button {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 650;
+    color: var(--text);
+}
+
+.ecs-nav-buttons button:hover {
+    background: #FAFBFC;
+}
+
+.ecs-nav-buttons button.active {
+    background: #DEEBFF;
+    border-color: #B3D4FF;
+    color: #0747A6;
+}
+
+.ecs-nav-sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+/* meta pills + toolbar */
+.meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.pill {
+    border: 1px solid var(--border);
+    background: #FAFBFC;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 10px 0 8px;
+}
+
+.toolbar-spacer {
+    flex: 1;
+}
+
+.segment {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.segment button {
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.segment button:last-child {
+    border-right: 0;
+}
+
+.segment button.active {
+    background: #DEEBFF;
+    color: #0747A6;
+}
+
+/* status/error */
+.status {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.error {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--dangerText);
+    white-space: pre-wrap;
+}
+
+/* narrative blocks produced by app.js */
+.narrative {
+    margin-top: 12px;
+}
+
+.section {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 12px;
+}
+
+.section-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.section-title {
+    font-size: 14px;
+    font-weight: 800;
+    margin: 0;
+}
+
+.block {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    background: var(--surface);
+    margin-top: 10px;
+}
+
+.block-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 8px;
+}
+
+/* key-value grid used by renderer */
+.kvgrid {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 6px 12px;
+    font-size: 13px;
+}
+
+.kkey {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.kval {
+    color: var(--text);
+}
+
+/* raw code */
+.code {
+    border: 1px solid var(--border);
+    background: #FAFBFC;
+    border-radius: 10px;
+    padding: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    overflow: auto;
+}
+
+.table-wrap {
+    overflow: auto;
+}
