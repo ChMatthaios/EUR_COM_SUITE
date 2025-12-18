@@ -585,3 +585,139 @@ tr:hover td {
 .table-wrap {
     overflow: auto;
 }
+
+/* ===== Corporate table tightening + safe long content ===== */
+table th,
+table td {
+    padding: 8px 10px;
+}
+
+table td {
+    max-width: 420px;
+    /* prevents mega-wide cells */
+    vertical-align: top;
+}
+
+.table-wrap {
+    overflow: auto;
+    /* horizontal scroll if needed */
+}
+
+/* Expandable details for complex cells */
+.ecs-details {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #FAFBFC;
+    padding: 6px 8px;
+}
+
+.ecs-details-summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text);
+    list-style: none;
+}
+
+.ecs-details-summary::-webkit-details-marker {
+    display: none;
+}
+
+.ecs-inline-json {
+    margin: 8px 0 0;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    max-height: 140px;
+    /* prevents tall rows */
+    overflow: auto;
+    white-space: pre;
+}
+
+/* ===== PDF-like narrative typography ===== */
+.para {
+    margin: 8px 0;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.bullets {
+    margin: 8px 0 0;
+    padding-left: 18px;
+}
+
+.bullets li {
+    margin: 6px 0;
+    line-height: 1.5;
+}
+
+/* Make narrative blocks feel like "report sections" */
+.block {
+    background: #fff;
+}
+
+.block-title {
+    font-size: 12px;
+}
+
+/* Optional: reduce table prominence (tables still appear in rare cases) */
+table {
+    font-size: 12.5px;
+}
+
+/* ===== PDF-like narrative formatting ===== */
+.pdf-kv {
+    margin-top: 8px;
+}
+
+.pdf-line {
+    padding: 3px 0;
+    line-height: 1.55;
+}
+
+.pdf-key {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.pdf-val {
+    color: var(--text);
+}
+
+.pdf-text {
+    margin-top: 8px;
+    line-height: 1.55;
+}
+
+.pdf-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 10px;
+}
+
+.pdf-entry {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+}
+
+.pdf-entry-head {
+    font-weight: 800;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 6px;
+}
+
+/* Hide empty “block” titles when title is empty */
+.block-title:empty {
+    display: none;
+}

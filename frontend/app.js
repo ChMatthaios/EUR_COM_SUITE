@@ -239,10 +239,12 @@
 
     function tableFromArray(arr) {
         const wrap = h("div", "table-wrap");
+
         const table = document.createElement("table");
         const thead = document.createElement("thead");
         const tbody = document.createElement("tbody");
 
+        // If scalar array => 1 column table
         if (arr.length && isScalar(arr[0])) {
             const trh = document.createElement("tr");
             const th = document.createElement("th");
@@ -253,7 +255,7 @@
             arr.forEach((x) => {
                 const tr = document.createElement("tr");
                 const td = document.createElement("td");
-                td.textContent = String(x);
+                td.textContent = x == null ? "" : String(x);
                 tr.appendChild(td);
                 tbody.appendChild(tr);
             });
@@ -264,11 +266,13 @@
             return wrap;
         }
 
+        // Object rows
         const rows = arr.map((x) => (x && typeof x === "object") ? x : { value: x });
 
+        // Build headers from union of keys (limited)
         const headerSet = new Set();
         for (const r of rows) for (const k of Object.keys(r)) headerSet.add(k);
-        const headers = Array.from(headerSet).slice(0, 12);
+        const headers = Array.from(headerSet).slice(0, 12); // keep it readable
 
         const trh = document.createElement("tr");
         headers.forEach((k) => {
@@ -278,13 +282,46 @@
         });
         thead.appendChild(trh);
 
+        function compactCell(value) {
+            // Corporate rule: tables show scalars only. Complex values become a compact summary + expandable details.
+            if (isScalar(value)) {
+                const span = document.createElement("span");
+                span.textContent = value == null ? "" : String(value);
+                return span;
+            }
+
+            const details = document.createElement("details");
+            details.className = "ecs-details";
+
+            const summary = document.createElement("summary");
+            summary.className = "ecs-details-summary";
+
+            if (Array.isArray(value)) {
+                summary.textContent = `Array (${value.length})`;
+            } else {
+                const keys = value && typeof value === "object" ? Object.keys(value).length : 0;
+                summary.textContent = `Object (${keys} keys)`;
+            }
+
+            const pre = document.createElement("pre");
+            pre.className = "ecs-inline-json";
+            try {
+                pre.textContent = JSON.stringify(value, null, 2);
+            } catch {
+                pre.textContent = String(value);
+            }
+
+            details.appendChild(summary);
+            details.appendChild(pre);
+            return details;
+        }
+
         rows.forEach((r) => {
             const tr = document.createElement("tr");
             headers.forEach((k) => {
                 const td = document.createElement("td");
                 const v = r[k];
-                if (isScalar(v)) td.textContent = v == null ? "" : String(v);
-                else td.textContent = JSON.stringify(v);
+                td.appendChild(compactCell(v));
                 tr.appendChild(td);
             });
             tbody.appendChild(tr);
@@ -296,64 +333,142 @@
         return wrap;
     }
 
+    /* Removed for better view of the reports. 20251218
     function renderBlockFromValue(title, value) {
         const block = h("div", "block");
         block.appendChild(h("div", "block-title", title));
 
+        // Helper: choose "important" keys to show in bullet summaries
+        const KEY_PRIORITY = [
+            "id", "accountId", "cardId", "customerId", "runId",
+            "status", "state", "type", "cardType",
+            "amount", "balance", "currency",
+            "issuedAt", "expiresOn", "date", "timestamp"
+        ];
+
+        function pickKeys(obj) {
+            const keys = Object.keys(obj || {});
+            // keep only scalar keys
+            const scalarKeys = keys.filter(k => isScalar(obj[k]));
+            // pick priority keys first
+            const picked = [];
+            for (const k of KEY_PRIORITY) {
+                if (scalarKeys.includes(k) && !picked.includes(k)) picked.push(k);
+                if (picked.length >= 4) break;
+            }
+            // then fill up to 4 with remaining scalar keys
+            for (const k of scalarKeys) {
+                if (!picked.includes(k)) picked.push(k);
+                if (picked.length >= 4) break;
+            }
+            return picked;
+        }
+
+        function summarizeValueInline(v) {
+            if (isScalar(v)) return v == null ? "" : String(v);
+            if (Array.isArray(v)) return `(${v.length} items)`;
+            if (v && typeof v === "object") return `(${Object.keys(v).length} fields)`;
+            return String(v ?? "");
+        }
+
+        function summarizeRowAsSentence(row) {
+            if (!row || typeof row !== "object") return String(row ?? "");
+            const keys = pickKeys(row);
+
+            // Build: "cardId: 29090 · status: ACTIVE · cardType: DEBIT · expiresOn: 2028-12-16"
+            const parts = keys.map(k => `${cleanKey(k)}: ${summarizeValueInline(row[k])}`);
+
+            // Add compact counts for complex fields (arrays/objects) without dumping JSON
+            const complexKeys = Object.keys(row).filter(k => !isScalar(row[k]));
+            const extra = complexKeys.slice(0, 3).map(k => `${cleanKey(k)}: ${summarizeValueInline(row[k])}`);
+            return [...parts, ...extra].filter(Boolean).join(" · ");
+        }
+
+        // ---- Rendering rules (PDF-like) ----
+
         if (value == null) {
-            block.appendChild(h("div", "", "No data."));
+            block.appendChild(h("p", "para", "No data."));
             return block;
         }
 
+        // If scalar => paragraph
+        if (isScalar(value)) {
+            block.appendChild(h("p", "para", String(value)));
+            return block;
+        }
+
+        // Arrays => bullets (paragraph-friendly)
         if (Array.isArray(value)) {
-            const max = 30;
-            const slice = value.slice(0, max);
-            block.appendChild(tableFromArray(slice));
-            if (value.length > max) block.appendChild(h("div", "badge", `Showing first ${max} rows`));
-            return block;
-        }
-
-        if (typeof value === "object") {
-            const scalars = {};
-            const complex = {};
-
-            for (const [k, v] of Object.entries(value)) {
-                if (isScalar(v)) scalars[k] = v;
-                else complex[k] = v;
+            if (value.length === 0) {
+                block.appendChild(h("p", "para", "No records."));
+                return block;
             }
 
-            if (Object.keys(scalars).length) block.appendChild(renderKVGrid(scalars));
+            const ul = document.createElement("ul");
+            ul.className = "bullets";
 
-            for (const [k, v] of Object.entries(complex)) {
+            const max = 12; // keep it tight for PDF
+            value.slice(0, max).forEach((row) => {
+                const li = document.createElement("li");
+                li.textContent = summarizeRowAsSentence(row);
+                ul.appendChild(li);
+            });
+
+            block.appendChild(ul);
+
+            if (value.length > max) {
+                block.appendChild(h("p", "para muted", `Showing ${max} of ${value.length} records.`));
+            }
+            return block;
+        }
+
+        // Objects => treat as "section summary":
+        // - show scalar fields as short paragraphs
+        // - show child arrays as bullet lists (sub-blocks)
+        // - show child objects as short key/value paragraph
+        if (typeof value === "object") {
+            const entries = Object.entries(value);
+
+            // 1) Scalar fields as tight paragraphs
+            const scalar = entries.filter(([_, v]) => isScalar(v));
+            if (scalar.length) {
+                const p = document.createElement("p");
+                p.className = "para";
+                p.textContent = scalar
+                    .slice(0, 8)
+                    .map(([k, v]) => `${cleanKey(k)}: ${summarizeValueInline(v)}`)
+                    .join("  •  ");
+                block.appendChild(p);
+            }
+
+            // 2) Arrays/objects as narrative sub-blocks (but still paragraph-friendly)
+            const complex = entries.filter(([_, v]) => !isScalar(v));
+            for (const [k, v] of complex) {
                 if (Array.isArray(v)) {
                     block.appendChild(renderBlockFromValue(cleanKey(k), v));
                 } else if (v && typeof v === "object") {
-                    const nestedScalars = {};
-                    const nestedComplex = {};
-                    for (const [nk, nv] of Object.entries(v)) {
-                        if (isScalar(nv)) nestedScalars[nk] = nv;
-                        else nestedComplex[nk] = nv;
-                    }
-
-                    const nested = h("div", "block");
-                    nested.appendChild(h("div", "block-title", cleanKey(k)));
-                    if (Object.keys(nestedScalars).length) nested.appendChild(renderKVGrid(nestedScalars));
-                    for (const [nk, nv] of Object.entries(nestedComplex)) {
-                        nested.appendChild(renderBlockFromValue(cleanKey(nk), nv));
-                    }
-                    block.appendChild(nested);
-                } else {
-                    block.appendChild(h("div", "", `${cleanKey(k)}: ${String(v)}`));
+                    // show a compact paragraph, no nested deep JSON
+                    const p = document.createElement("p");
+                    p.className = "para";
+                    const keys = Object.keys(v);
+                    const scalarKeys = keys.filter(kk => isScalar(v[kk])).slice(0, 6);
+                    const text = scalarKeys.length
+                        ? scalarKeys.map(kk => `${cleanKey(kk)}: ${summarizeValueInline(v[kk])}`).join("  •  ")
+                        : `${cleanKey(k)}: (${keys.length} fields)`;
+                    block.appendChild(h("div", "block-title", cleanKey(k)));
+                    block.appendChild(p);
+                    p.textContent = text;
                 }
             }
 
             return block;
         }
 
-        block.appendChild(h("div", "", String(value)));
+        // fallback
+        block.appendChild(h("p", "para", String(value)));
         return block;
     }
-
+        
     function renderReportLike(parsed) {
         const frag = document.createDocumentFragment();
         const modulesRaw = parsed?.modules && typeof parsed.modules === "object" ? parsed.modules : { REPORT: parsed };
@@ -367,12 +482,221 @@
             head.appendChild(h("div", "badge", currentMode === "XML" ? "XML" : "JSON"));
             section.appendChild(head);
 
-            section.appendChild(renderBlockFromValue("Overview", normalizeObject(data)));
+            section.appendChild(renderBlockFromValue("Summary", normalizeObject(data)));
             frag.appendChild(section);
         }
 
         return frag;
     }
+    */
+
+    // -----------------------------
+    // ✅ PDF-like narrative renderer (no placeholders)
+    // -----------------------------
+
+    function prettyLabel(k) {
+        const s = String(k || "")
+            .replace(/^@/, "")
+            .replace(/[_\-]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        // small humanizing
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function isEmptyObject(o) {
+        return o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).length === 0;
+    }
+
+    function shouldSkipWrapperKey(parentName, key, value) {
+        // Remove placeholder-y wrappers:
+        // e.g. Overview -> value is object that just wraps the actual content
+        const k = String(key || "").toLowerCase();
+        const p = String(parentName || "").toLowerCase();
+
+        if (k === "overview" || k === "summary") return true;
+
+        // If key == parent name (cards -> cards), skip the outer wrapper
+        if (p && k === p) return true;
+
+        // If object has exactly 1 key and it repeats the same name, unwrap it
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            const keys = Object.keys(value);
+            if (keys.length === 1) {
+                const only = keys[0].toLowerCase();
+                if (only === k || only === p) return true;
+            }
+        }
+
+        return false;
+    }
+
+    function scalarText(v) {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "boolean") return v ? "Yes" : "No";
+        return String(v);
+    }
+
+    function renderKVParagraphs(obj) {
+        // PDF-like: lines, not a grid-table
+        const wrap = document.createElement("div");
+        wrap.className = "pdf-kv";
+
+        for (const [k, v] of Object.entries(obj)) {
+            const line = document.createElement("div");
+            line.className = "pdf-line";
+
+            const key = document.createElement("span");
+            key.className = "pdf-key";
+            key.textContent = `${prettyLabel(k)}: `;
+
+            const val = document.createElement("span");
+            val.className = "pdf-val";
+            val.textContent = scalarText(v);
+
+            line.appendChild(key);
+            line.appendChild(val);
+            wrap.appendChild(line);
+        }
+        return wrap;
+    }
+
+    function splitScalarAndComplex(obj) {
+        const scalars = {};
+        const complex = {};
+        for (const [k, v] of Object.entries(obj || {})) {
+            if (isScalar(v)) scalars[k] = v;
+            else complex[k] = v;
+        }
+        return { scalars, complex };
+    }
+
+    function renderValuePDF(title, value, parentName = "") {
+        // A clean block with a title only when meaningful
+        const block = h("div", "block");
+
+        if (title) {
+            const t = h("div", "block-title", title);
+            block.appendChild(t);
+        }
+
+        if (value == null) {
+            // show nothing rather than “No data.” placeholders
+            return block;
+        }
+
+        // scalar -> paragraph
+        if (isScalar(value)) {
+            const p = h("div", "pdf-text", scalarText(value));
+            block.appendChild(p);
+            return block;
+        }
+
+        // array -> numbered entries, each entry expanded cleanly
+        if (Array.isArray(value)) {
+            const arr = value;
+
+            if (arr.length === 0) {
+                // hide empty arrays completely (no placeholders)
+                return block;
+            }
+
+            const list = document.createElement("div");
+            list.className = "pdf-list";
+
+            arr.forEach((item, idx) => {
+                const entry = document.createElement("div");
+                entry.className = "pdf-entry";
+
+                const head = document.createElement("div");
+                head.className = "pdf-entry-head";
+                head.textContent = `${title || "Item"} ${idx + 1}`;
+
+                entry.appendChild(head);
+
+                if (isScalar(item)) {
+                    entry.appendChild(h("div", "pdf-text", scalarText(item)));
+                } else if (Array.isArray(item)) {
+                    // nested array
+                    entry.appendChild(renderValuePDF("", item, title));
+                } else if (item && typeof item === "object") {
+                    const { scalars, complex } = splitScalarAndComplex(item);
+                    if (!isEmptyObject(scalars)) entry.appendChild(renderKVParagraphs(scalars));
+
+                    // recurse complex fields
+                    for (const [k, v] of Object.entries(complex)) {
+                        entry.appendChild(renderValuePDF(prettyLabel(k), v, k));
+                    }
+                }
+
+                list.appendChild(entry);
+            });
+
+            block.appendChild(list);
+            return block;
+        }
+
+        // object -> scalar lines + nested sections
+        if (value && typeof value === "object") {
+            const obj = normalizeObject(value);
+
+            // If object is a pure wrapper (payload/item) it’s already normalized earlier,
+            // but we also unwrap "same-name" wrappers here.
+            const { scalars, complex } = splitScalarAndComplex(obj);
+
+            // scalar fields first
+            if (!isEmptyObject(scalars)) block.appendChild(renderKVParagraphs(scalars));
+
+            // then nested blocks (skip placeholder wrappers)
+            for (const [k, v] of Object.entries(complex)) {
+                if (shouldSkipWrapperKey(parentName, k, v)) {
+                    // unwrap the inner content instead of rendering the wrapper title
+                    const inner =
+                        (v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 1)
+                            ? v[Object.keys(v)[0]]
+                            : v;
+                    block.appendChild(renderValuePDF("", inner, parentName));
+                    continue;
+                }
+                block.appendChild(renderValuePDF(prettyLabel(k), v, k));
+            }
+
+            return block;
+        }
+
+        return block;
+    }
+
+    function renderReportLike(parsed) {
+        const frag = document.createDocumentFragment();
+
+        // Modules are the structure we use for both JSON and XML (after xmlToReportLikeJson)
+        const modulesRaw =
+            parsed?.modules && typeof parsed.modules === "object"
+                ? parsed.modules
+                : { REPORT: parsed };
+
+        const modules = normalizeObject(modulesRaw);
+
+        for (const [moduleName, moduleData] of Object.entries(modules)) {
+            const section = h("div", "section");
+
+            // Section title only (no JSON/XML badge, no placeholders)
+            const head = h("div", "section-head");
+            head.appendChild(h("h2", "section-title", prettyLabel(moduleName)));
+            section.appendChild(head);
+
+            // Render module content in PDF style (no "Overview/Summary")
+            const content = renderValuePDF("", moduleData, moduleName);
+            section.appendChild(content);
+
+            frag.appendChild(section);
+        }
+
+        return frag;
+    }
+
 
     // -----------------------------
     // XML -> object
