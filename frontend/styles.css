@@ -721,3 +721,111 @@ table {
 .block-title:empty {
     display: none;
 }
+
+/* ===== PDF-style report look ===== */
+.module-page {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 14px;
+}
+
+.module-head {
+    margin-bottom: 12px;
+}
+
+.module-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+/* blocks inside a module */
+.pdf-block {
+    margin-top: 12px;
+}
+
+.pdf-block-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 6px;
+}
+
+/* Key/Value table (2 columns) */
+.pdf-kv-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.pdf-kv-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.pdf-kv-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.pdf-k {
+    width: 28%;
+    color: var(--muted);
+    font-weight: 700;
+    background: #FAFBFC;
+}
+
+.pdf-v {
+    color: var(--text);
+}
+
+/* Record tables (arrays) */
+.pdf-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.pdf-table th,
+.pdf-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: top;
+}
+
+.pdf-table th {
+    background: #FAFBFC;
+    font-weight: 800;
+}
+
+.pdf-table tr:last-child td {
+    border-bottom: 0;
+}
+
+/* Print: one page per module */
+@media print {
+    .module-page {
+        page-break-after: always;
+        break-after: page;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+        margin: 0;
+    }
+
+    .module-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+}

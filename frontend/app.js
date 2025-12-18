@@ -668,6 +668,7 @@
         return block;
     }
 
+    /*
     function renderReportLike(parsed) {
         const frag = document.createDocumentFragment();
 
@@ -696,7 +697,240 @@
 
         return frag;
     }
+    */
 
+    // -----------------------------
+    // ✅ PDF-style report renderer (tables, no placeholders)
+    // -----------------------------
+
+    function titleize(k) {
+        return String(k || "")
+            .replace(/^@/, "")
+            .replace(/[_\-]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .replace(/^\w/, (c) => c.toUpperCase());
+    }
+
+    function isEmptyVal(v) {
+        if (v == null) return true;
+        if (Array.isArray(v)) return v.length === 0;
+        if (typeof v === "object") return Object.keys(v).length === 0;
+        return false;
+    }
+
+    function compactValue(v) {
+        if (isScalar(v)) return v == null ? "" : String(v);
+        if (Array.isArray(v)) return `${v.length} items`;
+        if (v && typeof v === "object") return `${Object.keys(v).length} fields`;
+        return "";
+    }
+
+    function objectToKVTable(obj) {
+        const t = document.createElement("table");
+        t.className = "pdf-kv-table";
+
+        const tbody = document.createElement("tbody");
+
+        for (const [k, v] of Object.entries(obj || {})) {
+            if (isEmptyVal(v)) continue;
+            if (!isScalar(v)) continue; // KV table = scalars only
+
+            const tr = document.createElement("tr");
+            const tdK = document.createElement("td");
+            const tdV = document.createElement("td");
+
+            tdK.className = "pdf-k";
+            tdV.className = "pdf-v";
+
+            tdK.textContent = titleize(k);
+            tdV.textContent = compactValue(v);
+
+            tr.appendChild(tdK);
+            tr.appendChild(tdV);
+            tbody.appendChild(tr);
+        }
+
+        // If no scalar rows, return null (no placeholders)
+        if (!tbody.children.length) return null;
+
+        t.appendChild(tbody);
+        return t;
+    }
+
+    function arrayToTable(arr) {
+        const rows = (arr || []).filter(Boolean);
+        if (!rows.length) return null;
+
+        // Convert non-objects to {value: x}
+        const norm = rows.map(r => (r && typeof r === "object" && !Array.isArray(r)) ? r : { value: r });
+
+        // Determine columns from scalar keys union
+        const colSet = new Set();
+        for (const r of norm) {
+            for (const [k, v] of Object.entries(r)) {
+                if (isScalar(v)) colSet.add(k);
+            }
+            // also represent complex keys as count columns (still corporate)
+            for (const [k, v] of Object.entries(r)) {
+                if (!isScalar(v) && v != null) colSet.add(k);
+            }
+        }
+
+        const cols = Array.from(colSet).slice(0, 12);
+
+        const table = document.createElement("table");
+        table.className = "pdf-table";
+
+        const thead = document.createElement("thead");
+        const trh = document.createElement("tr");
+        cols.forEach(k => {
+            const th = document.createElement("th");
+            th.textContent = titleize(k);
+            trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+
+        const tbody = document.createElement("tbody");
+        norm.forEach(r => {
+            const tr = document.createElement("tr");
+            cols.forEach(k => {
+                const td = document.createElement("td");
+                const v = r[k];
+
+                // Scalar => print
+                if (isScalar(v)) {
+                    td.textContent = v == null ? "" : String(v);
+                } else if (Array.isArray(v)) {
+                    td.textContent = `${v.length}`;
+                } else if (v && typeof v === "object") {
+                    td.textContent = `${Object.keys(v).length}`;
+                } else {
+                    td.textContent = "";
+                }
+
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        return table;
+    }
+
+    function renderAny(name, value, container) {
+        if (isEmptyVal(value)) return;
+
+        // Array => table
+        if (Array.isArray(value)) {
+            const t = arrayToTable(value);
+            if (!t) return;
+
+            const block = document.createElement("div");
+            block.className = "pdf-block";
+            block.appendChild(h("div", "pdf-block-title", titleize(name)));
+            block.appendChild(t);
+            container.appendChild(block);
+            return;
+        }
+
+        // Object => KV scalars + then child arrays as separate blocks
+        if (value && typeof value === "object") {
+            const obj = normalizeObject(value);
+
+            const block = document.createElement("div");
+            block.className = "pdf-block";
+            if (name) block.appendChild(h("div", "pdf-block-title", titleize(name)));
+
+            // scalars
+            const kv = objectToKVTable(obj);
+            if (kv) block.appendChild(kv);
+
+            // children (arrays/objects) as blocks, but skip “summary/overview” wrapper keys
+            for (const [k, v] of Object.entries(obj)) {
+                const lk = String(k || "").toLowerCase();
+                if (lk === "summary" || lk === "overview") continue;
+                if (isScalar(v)) continue;
+                if (isEmptyVal(v)) continue;
+
+                // unwrap repeated wrapper like cards:{cards:[...]}
+                if (v && typeof v === "object" && !Array.isArray(v)) {
+                    const keys = Object.keys(v);
+                    if (keys.length === 1 && keys[0].toLowerCase() === lk) {
+                        renderAny(k, v[keys[0]], block);
+                        continue;
+                    }
+                }
+
+                renderAny(k, v, block);
+            }
+
+            // If block ended up empty, don’t show placeholder
+            if (block.children.length > (name ? 1 : 0)) container.appendChild(block);
+            return;
+        }
+
+        // Scalar => show in KV (handled by parent); otherwise ignore.
+    }
+
+    function renderReportLike(parsed) {
+        const frag = document.createDocumentFragment();
+
+        const modulesRaw =
+            parsed?.modules && typeof parsed.modules === "object"
+                ? parsed.modules
+                : { REPORT: parsed };
+
+        const modules = normalizeObject(modulesRaw);
+
+        // Optional: nice module ordering (more “PDF”)
+        const preferredOrder = [
+            "CUSTOMER_PROFILE",
+            "COMPLIANCE",
+            "ACCOUNTS",
+            "CARDS",
+            "LOANS",
+            "FEES",
+            "TRANSACTIONS",
+        ];
+
+        const names = Object.keys(modules);
+        names.sort((a, b) => {
+            const ia = preferredOrder.indexOf(a);
+            const ib = preferredOrder.indexOf(b);
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+        });
+
+        names.forEach((moduleName, idx) => {
+            const data = modules[moduleName];
+            if (isEmptyVal(data)) return; // no placeholder pages
+
+            const page = document.createElement("div");
+            page.className = "module-page";
+
+            // Page header
+            const head = document.createElement("div");
+            head.className = "module-head";
+            head.appendChild(h("div", "module-title", titleize(moduleName)));
+            page.appendChild(head);
+
+            // Content blocks
+            const content = document.createElement("div");
+            content.className = "module-body";
+
+            // Render module content
+            renderAny("", data, content);
+
+            // Only append if there’s content
+            if (content.children.length) {
+                page.appendChild(content);
+                frag.appendChild(page);
+            }
+        });
+
+        return frag;
+    }
 
     // -----------------------------
     // XML -> object
@@ -729,6 +963,81 @@
         return obj;
     }
 
+    // Force certain keys to always be arrays (so XML & JSON render identically)
+    const ALWAYS_ARRAY_KEYS = new Set([
+        "contacts",
+        "addresses",
+        "kycdocuments",
+        "cards",
+        "accounts",
+        "flags",
+        "loans",
+        "fees",
+        "transactions",
+        "openauthorizations",
+        "recentsettlements"
+    ]);
+
+    function forceArraysDeep(node) {
+        if (node == null) return node;
+
+        if (Array.isArray(node)) {
+            return node.map(forceArraysDeep);
+        }
+
+        if (typeof node === "object") {
+            const out = {};
+            for (const [k, v] of Object.entries(node)) {
+                const keyNorm = String(k).toLowerCase();
+
+                let next = forceArraysDeep(v);
+
+                // If key is plural-like and value is a single object => wrap into array
+                if (ALWAYS_ARRAY_KEYS.has(keyNorm) && next != null && !Array.isArray(next)) {
+                    next = [next];
+                }
+
+                out[k] = next;
+            }
+            return out;
+        }
+
+        return node;
+    }
+
+    function unwrapXmlTextNodesDeep(node) {
+        if (node == null) return node;
+
+        if (Array.isArray(node)) {
+            return node.map(unwrapXmlTextNodesDeep);
+        }
+
+        if (typeof node === "object") {
+            const keys = Object.keys(node);
+
+            // If it's exactly { "#text": "..." } => return the text as a scalar
+            if (keys.length === 1 && keys[0] === "#text") {
+                return node["#text"];
+            }
+
+            // If it's { "@attr": "...", "#text": "..." } => return the text (keep it simple/corporate)
+            const hasText = keys.includes("#text");
+            const hasOnlyAttrsAndText = hasText && keys.every(k => k === "#text" || k.startsWith("@"));
+            if (hasOnlyAttrsAndText) {
+                return node["#text"];
+            }
+
+            // Otherwise recurse
+            const out = {};
+            for (const [k, v] of Object.entries(node)) {
+                out[k] = unwrapXmlTextNodesDeep(v);
+            }
+            return out;
+        }
+
+        return node;
+    }
+
     function xmlToReportLikeJson(xmlString) {
         const xml = String(xmlString || "").trim();
         if (!xml) return null;
@@ -739,11 +1048,21 @@
         const root = doc.documentElement;
         const rootObj = xmlElementToObject(root);
 
+        let shaped;
         const maybeModules = rootObj?.Modules || rootObj?.modules || null;
         if (maybeModules && typeof maybeModules === "object") {
-            return { modules: maybeModules };
+            shaped = { modules: maybeModules };
+        } else {
+            shaped = { modules: { [root.nodeName]: rootObj } };
         }
-        return { modules: { [root.nodeName]: rootObj } };
+
+        // ✅ NEW: unwrap { "#text": "..." } into real scalars
+        shaped = unwrapXmlTextNodesDeep(shaped);
+
+        // ✅ keep your existing normalization so XML & JSON match structurally
+        shaped = forceArraysDeep(shaped);
+
+        return shaped;
     }
 
     // -----------------------------
