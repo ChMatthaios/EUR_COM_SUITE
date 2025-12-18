@@ -6,66 +6,59 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Employee Portal — EUR COM SUITE</title>
     <link rel="stylesheet" href="styles.css" />
-    <style>
-        .wrap {
-            max-width: 900px;
-            margin: 24px auto;
-            padding: 16px
-        }
-
-        .top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap
-        }
-
-        .card {
-            border: 1px solid #ddd;
-            border-radius: 12px;
-            padding: 14px;
-            margin-top: 14px
-        }
-
-        button {
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 0;
-            cursor: pointer
-        }
-
-        pre {
-            white-space: pre-wrap;
-            word-break: break-word
-        }
-    </style>
 </head>
 
 <body>
-    <div class="wrap">
-        <div class="top">
-            <h2>Employee Portal</h2>
+    <div class="ecs-shell">
+        <header class="ecs-topbar">
             <div>
-                <button id="btnLogout">Logout</button>
+                <div class="ecs-brand">EUR COM SUITE</div>
+                <div class="ecs-breadcrumbs">Employee / Dashboard</div>
             </div>
-        </div>
 
-        <div class="card">
-            <div id="who"></div>
-            <div id="status"></div>
-        </div>
+            <div class="ecs-topbar-right">
+                <button id="btnLogout" class="btn">Logout</button>
+            </div>
+        </header>
 
-        <div class="card">
-            <h3>Tools</h3>
-            <button id="btnGoViewer">Open Reports Viewer</button>
-            <p style="margin-top:10px;">(Next: customer search, case management, commissions dashboard.)</p>
-        </div>
+        <main class="ecs-main">
+            <aside class="ecs-sidebar">
+                <div class="ecs-nav-title">Employee</div>
+                <nav class="ecs-nav">
+                    <a href="employee.html" class="active">Dashboard</a>
+                    <a href="viewer.html">Reports Viewer</a>
+                </nav>
+            </aside>
 
-        <div class="card">
-            <h3>Debug</h3>
-            <pre id="debug"></pre>
-        </div>
+            <section class="ecs-content">
+                <h1>Employee Portal</h1>
+                <p class="small">Operations view (reports, tools, upcoming dashboards).</p>
+
+                <div class="ecs-card">
+                    <h3>Session</h3>
+                    <div id="who" class="small"></div>
+                    <div id="status" class="small" style="margin-top:8px;"></div>
+                </div>
+
+                <div class="ecs-section">
+                    <div class="ecs-card">
+                        <h3>Tools</h3>
+                        <button id="btnGoViewer" class="btn btn-primary">Open Reports Viewer</button>
+                        <p class="small" style="margin-top:10px;">
+                            Next: customer search, case management, commissions dashboard.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="ecs-section">
+                    <div class="ecs-card">
+                        <h3>Debug</h3>
+                        <pre id="debug" class="code"
+                            style="white-space:pre-wrap; word-break:break-word; margin:0;"></pre>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script>

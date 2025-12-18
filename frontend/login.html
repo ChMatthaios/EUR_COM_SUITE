@@ -6,68 +6,36 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>EUR COM SUITE — Login</title>
     <link rel="stylesheet" href="styles.css" />
-    <style>
-        .card {
-            max-width: 420px;
-            margin: 60px auto;
-            padding: 18px;
-            border: 1px solid #ddd;
-            border-radius: 12px;
-        }
-
-        .row {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin: 10px 0;
-        }
-
-        input {
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid #ccc;
-        }
-
-        button {
-            padding: 10px;
-            border-radius: 10px;
-            border: 0;
-            cursor: pointer;
-        }
-
-        .err {
-            color: #b00020;
-            white-space: pre-wrap;
-        }
-
-        .muted {
-            color: #666;
-            font-size: 0.9rem;
-        }
-    </style>
 </head>
 
 <body>
-    <div class="card">
-        <h2>Login</h2>
-        <p class="muted">Demo users: employee1 / Employee123! — customer1 / Customer123!</p>
+    <div class="ecs-shell">
+        <header class="ecs-topbar">
+            <div>
+                <div class="ecs-brand">EUR COM SUITE</div>
+                <div class="ecs-breadcrumbs">Sign in</div>
+            </div>
+        </header>
 
-        <div class="row">
-            <label>Username</label>
-            <input id="username" autocomplete="username" />
-        </div>
+        <main class="ecs-center">
+            <div class="ecs-auth">
+                <h1>Sign in</h1>
+                <p class="small">Demo users: employee1 / Employee123! — customer1 / Customer123!</p>
 
-        <div class="row">
-            <label>Password</label>
-            <input id="password" type="password" autocomplete="current-password" />
-        </div>
+                <label for="username">Username</label>
+                <input id="username" autocomplete="username" />
 
-        <div class="row">
-            <button id="btnLogin">Sign in</button>
-        </div>
+                <label for="password">Password</label>
+                <input id="password" type="password" autocomplete="current-password" />
 
-        <div id="status" class="muted"></div>
-        <div id="error" class="err"></div>
+                <div style="margin-top:12px;">
+                    <button id="btnLogin" class="btn btn-primary" style="width:100%;">Sign in</button>
+                </div>
+
+                <div id="status" class="small" style="margin-top:10px;"></div>
+                <div id="error" class="error" style="margin-top:10px; white-space:pre-wrap;"></div>
+            </div>
+        </main>
     </div>
 
     <script>
@@ -78,6 +46,11 @@
         const elErr = document.getElementById("error");
         const elStatus = document.getElementById("status");
         const btn = document.getElementById("btnLogin");
+
+        function clearSession() {
+            localStorage.removeItem("ecs_token");
+            localStorage.removeItem("ecs_user");
+        }
 
         async function login() {
             elErr.textContent = "";
@@ -105,20 +78,24 @@
                 localStorage.setItem("ecs_token", data.access_token);
                 localStorage.setItem("ecs_user", JSON.stringify(data.user));
 
-                // test /api/me immediately (verifies token works)
+                // verify immediately
                 const meRes = await fetch(`${API_BASE}/me`, {
                     headers: { Authorization: `Bearer ${data.access_token}` }
                 });
-                const me = await meRes.json();
 
+                if (!meRes.ok) {
+                    clearSession();
+                    elStatus.textContent = "";
+                    elErr.textContent = "Login succeeded but /api/me failed. Please try again.";
+                    return;
+                }
+
+                const me = await meRes.json();
                 elStatus.textContent = `Logged in as ${me.username} (${me.role})`;
 
-                // redirect by role (we'll create these pages next step)
-                if (me.role === "CUSTOMER") {
-                    window.location.href = "customer.html";
-                } else {
-                    window.location.href = "employee.html";
-                }
+                // redirect by role
+                if (me.role === "CUSTOMER") window.location.href = "customer.html";
+                else window.location.href = "employee.html";
 
             } catch (e) {
                 elStatus.textContent = "";

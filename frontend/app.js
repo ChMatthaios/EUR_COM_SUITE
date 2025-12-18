@@ -2,8 +2,8 @@
     const API_BASE = "http://127.0.0.1:8000/api";
     const $ = (id) => document.getElementById(id);
 
-    // DOM
-    const elThemeBtn = $("themeBtn");
+    // DOM (Viewer only)
+    const elThemeBtn = $("themeBtn"); // may be null if you remove it from viewer.html
     const elModuleCustomer = $("module_customer_reports");
     const elModuleJsonRaw = $("module_json_raw");
     const elModuleXmlRaw = $("module_xml_raw");
@@ -45,8 +45,8 @@
     // -----------------------------
     // Helpers
     // -----------------------------
-    function setError(msg) { elError.textContent = msg || ""; }
-    function setStatus(msg) { elStatus.textContent = msg || ""; }
+    function setError(msg) { if (elError) elError.textContent = msg || ""; }
+    function setStatus(msg) { if (elStatus) elStatus.textContent = msg || ""; }
 
     function getToken() { return localStorage.getItem("ecs_token"); }
     function getStoredUser() {
@@ -74,13 +74,12 @@
         return res;
     }
 
-    function setTheme(theme) {
-        document.documentElement.setAttribute("data-theme", theme);
-        localStorage.setItem("ecs_theme", theme);
-    }
-    function toggleTheme() {
-        const cur = document.documentElement.getAttribute("data-theme") || "light";
-        setTheme(cur === "light" ? "dark" : "light");
+    // -----------------------------
+    // Theme: always light
+    // -----------------------------
+    function forceLightTheme() {
+        document.documentElement.setAttribute("data-theme", "light");
+        localStorage.setItem("ecs_theme", "light");
     }
 
     function safeJsonParse(maybeJson) {
@@ -118,14 +117,14 @@
     }
 
     function setLabels(report) {
-        elCustomerIdLabel.textContent = report?.customerId ?? "-";
-        elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
-        elRunIdLabel.textContent = report?.runId ?? "-";
+        if (elCustomerIdLabel) elCustomerIdLabel.textContent = report?.customerId ?? "-";
+        if (elGeneratedAtLabel) elGeneratedAtLabel.textContent = report?.generatedAt ?? "-";
+        if (elRunIdLabel) elRunIdLabel.textContent = report?.runId ?? "-";
     }
 
     function clearRender() {
-        elNarrative.innerHTML = "";
-        elRaw.textContent = "";
+        if (elNarrative) elNarrative.innerHTML = "";
+        if (elRaw) elRaw.textContent = "";
     }
 
     // -----------------------------
@@ -176,7 +175,7 @@
     }
 
     // -----------------------------
-    // ✅ Data cleanup for rendering
+    // Data cleanup for rendering
     // -----------------------------
     const NOISY_KEYS = new Set(["payload", "item", "#text"]);
 
@@ -186,19 +185,16 @@
 
     function cleanKey(k) {
         return String(k || "")
-            .replace(/^@/, "")          // remove XML attribute prefix
+            .replace(/^@/, "")
             .replace(/[_\-]+/g, " ")
             .replace(/\s+/g, " ")
             .trim();
     }
 
     function normalizeObject(obj) {
-        // removes noisy wrapper keys like payload/item, and flattens them if possible
         if (!obj || typeof obj !== "object") return obj;
-
         if (Array.isArray(obj)) return obj.map(normalizeObject);
 
-        // If object is like { payload: {...} } -> unwrap payload
         if (Object.keys(obj).length === 1) {
             const onlyKey = Object.keys(obj)[0];
             if (NOISY_KEYS.has(onlyKey)) return normalizeObject(obj[onlyKey]);
@@ -208,7 +204,6 @@
         for (const [k, v] of Object.entries(obj)) {
             if (NOISY_KEYS.has(k)) {
                 const nv = normalizeObject(v);
-                // merge if object
                 if (nv && typeof nv === "object" && !Array.isArray(nv)) {
                     for (const [mk, mv] of Object.entries(nv)) out[mk] = mv;
                 } else {
@@ -222,7 +217,7 @@
     }
 
     // -----------------------------
-    // ✅ JSON/XML narrative renderer (tables)
+    // Narrative renderer
     // -----------------------------
     function h(tag, className, text) {
         const n = document.createElement(tag);
@@ -243,14 +238,11 @@
     }
 
     function tableFromArray(arr) {
-        // arr: array of objects (or scalars)
         const wrap = h("div", "table-wrap");
-
         const table = document.createElement("table");
         const thead = document.createElement("thead");
         const tbody = document.createElement("tbody");
 
-        // If scalar array => 1 column table
         if (arr.length && isScalar(arr[0])) {
             const trh = document.createElement("tr");
             const th = document.createElement("th");
@@ -272,13 +264,11 @@
             return wrap;
         }
 
-        // Object rows
         const rows = arr.map((x) => (x && typeof x === "object") ? x : { value: x });
 
-        // Build headers from union of keys (limited)
         const headerSet = new Set();
         for (const r of rows) for (const k of Object.keys(r)) headerSet.add(k);
-        const headers = Array.from(headerSet).slice(0, 12); // keep it readable
+        const headers = Array.from(headerSet).slice(0, 12);
 
         const trh = document.createElement("tr");
         headers.forEach((k) => {
@@ -324,7 +314,6 @@
         }
 
         if (typeof value === "object") {
-            // split scalars vs arrays/objects
             const scalars = {};
             const complex = {};
 
@@ -339,7 +328,6 @@
                 if (Array.isArray(v)) {
                     block.appendChild(renderBlockFromValue(cleanKey(k), v));
                 } else if (v && typeof v === "object") {
-                    // nested object: show key/value grid (scalars only) + nested arrays as sub-blocks
                     const nestedScalars = {};
                     const nestedComplex = {};
                     for (const [nk, nv] of Object.entries(v)) {
@@ -362,7 +350,6 @@
             return block;
         }
 
-        // scalar
         block.appendChild(h("div", "", String(value)));
         return block;
     }
@@ -380,9 +367,7 @@
             head.appendChild(h("div", "badge", currentMode === "XML" ? "XML" : "JSON"));
             section.appendChild(head);
 
-            // Main block (unwrap payload/item noise)
             section.appendChild(renderBlockFromValue("Overview", normalizeObject(data)));
-
             frag.appendChild(section);
         }
 
@@ -390,7 +375,7 @@
     }
 
     // -----------------------------
-    // ✅ XML → object, then render like JSON
+    // XML -> object
     // -----------------------------
     function xmlElementToObject(node) {
         if (!node || node.nodeType !== 1) return null;
@@ -443,20 +428,22 @@
     function setActiveModule(module) {
         currentModule = module;
 
-        [elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw].forEach((b) => b.classList.remove("active"));
-        if (module === "customer_reports") elModuleCustomer.classList.add("active");
-        if (module === "json_raw") elModuleJsonRaw.classList.add("active");
-        if (module === "xml_raw") elModuleXmlRaw.classList.add("active");
+        [elModuleCustomer, elModuleJsonRaw, elModuleXmlRaw].forEach((b) => b && b.classList.remove("active"));
+        if (module === "customer_reports" && elModuleCustomer) elModuleCustomer.classList.add("active");
+        if (module === "json_raw" && elModuleJsonRaw) elModuleJsonRaw.classList.add("active");
+        if (module === "xml_raw" && elModuleXmlRaw) elModuleXmlRaw.classList.add("active");
 
-        if (module === "customer_reports") {
-            elPageTitle.textContent = "Customer Reports";
-            elPageSub.textContent = "Simple tables — readable & PDF-ready";
-        } else if (module === "json_raw") {
-            elPageTitle.textContent = "JSON Raw (Debug)";
-            elPageSub.textContent = "Pretty printed JSON text";
-        } else {
-            elPageTitle.textContent = "XML Raw (Debug)";
-            elPageSub.textContent = "Pretty printed XML text";
+        if (elPageTitle && elPageSub) {
+            if (module === "customer_reports") {
+                elPageTitle.textContent = "Customer Reports";
+                elPageSub.textContent = "Simple tables — readable & PDF-ready";
+            } else if (module === "json_raw") {
+                elPageTitle.textContent = "JSON Raw (Debug)";
+                elPageSub.textContent = "Pretty printed JSON text";
+            } else {
+                elPageTitle.textContent = "XML Raw (Debug)";
+                elPageSub.textContent = "Pretty printed XML text";
+            }
         }
 
         render();
@@ -469,56 +456,61 @@
         if (!currentReport) {
             setLabels(null);
             setStatus("No report loaded yet.");
-            elNarrative.innerHTML = "Load a report to view.";
-            elNarrative.style.display = "";
-            elRaw.style.display = "none";
+            if (elNarrative) {
+                elNarrative.innerHTML = "Load a report to view.";
+                elNarrative.style.display = "";
+            }
+            if (elRaw) elRaw.style.display = "none";
             return;
         }
 
         setLabels(currentReport);
 
         if (currentModule === "json_raw") {
-            elNarrative.style.display = "none";
-            elRaw.style.display = "";
-            const parsed = safeJsonParse(currentReport.json);
-            elRaw.textContent = parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "");
+            if (elNarrative) elNarrative.style.display = "none";
+            if (elRaw) {
+                elRaw.style.display = "";
+                const parsed = safeJsonParse(currentReport.json);
+                elRaw.textContent = parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "");
+            }
             setStatus("Raw JSON view.");
             return;
         }
 
         if (currentModule === "xml_raw") {
-            elNarrative.style.display = "none";
-            elRaw.style.display = "";
-            elRaw.textContent = prettyXml(currentReport.xml);
+            if (elNarrative) elNarrative.style.display = "none";
+            if (elRaw) {
+                elRaw.style.display = "";
+                elRaw.textContent = prettyXml(currentReport.xml);
+            }
             setStatus("Raw XML view.");
             return;
         }
 
-        // Narrative
-        elNarrative.style.display = "";
-        elRaw.style.display = "none";
+        if (elNarrative) elNarrative.style.display = "";
+        if (elRaw) elRaw.style.display = "none";
 
         if (currentMode === "JSON") {
             const parsed = safeJsonParse(currentReport.json);
             if (!parsed) {
                 setStatus("Invalid JSON — showing raw.");
-                elNarrative.appendChild(h("pre", "code", String(currentReport.json ?? "")));
+                if (elNarrative) elNarrative.appendChild(h("pre", "code", String(currentReport.json ?? "")));
                 return;
             }
             setStatus("JSON — simple tables (PDF-ready).");
-            elNarrative.appendChild(renderReportLike(parsed));
+            if (elNarrative) elNarrative.appendChild(renderReportLike(parsed));
             return;
         }
 
         const asJson = xmlToReportLikeJson(currentReport.xml);
         if (!asJson) {
             setStatus("Invalid XML — showing raw.");
-            elNarrative.appendChild(h("pre", "code", String(currentReport.xml ?? "")));
+            if (elNarrative) elNarrative.appendChild(h("pre", "code", String(currentReport.xml ?? "")));
             return;
         }
 
         setStatus("XML — rendered like JSON (simple tables, PDF-ready).");
-        elNarrative.appendChild(renderReportLike(asJson));
+        if (elNarrative) elNarrative.appendChild(renderReportLike(asJson));
     }
 
     // -----------------------------
@@ -534,13 +526,13 @@
             return;
         }
 
-        elSideUser.textContent = user.username ?? "-";
-        elSideRole.textContent = user.role ?? "-";
-        elSideCustomer.textContent = user.customer_id ?? "-";
+        if (elSideUser) elSideUser.textContent = user.username ?? "-";
+        if (elSideRole) elSideRole.textContent = user.role ?? "-";
+        if (elSideCustomer) elSideCustomer.textContent = user.customer_id ?? "-";
 
         if (user.role === "CUSTOMER") {
-            elCustomerSelect.style.display = "none";
-            elReloadBtn.style.display = "none";
+            if (elCustomerSelect) elCustomerSelect.style.display = "none";
+            if (elReloadBtn) elReloadBtn.style.display = "none";
 
             const res = await apiFetch("/customer/reports");
             const rows = await res.json();
@@ -559,11 +551,13 @@
             return;
         }
 
-        elCustomerSelect.style.display = "";
-        elReloadBtn.style.display = "";
+        if (elCustomerSelect) elCustomerSelect.style.display = "";
+        if (elReloadBtn) elReloadBtn.style.display = "";
 
         const res = await apiFetch("/customers");
         const customers = await res.json();
+
+        if (!elCustomerSelect) return;
 
         elCustomerSelect.innerHTML = "";
         const placeholder = document.createElement("option");
@@ -598,7 +592,7 @@
             return;
         }
 
-        const customerId = String(elCustomerSelect.value || "").trim();
+        const customerId = String(elCustomerSelect?.value || "").trim();
         if (!customerId) {
             setStatus("");
             setError("Please select a customer first.");
@@ -617,65 +611,62 @@
     // Events
     // -----------------------------
     function hookEvents() {
-        elThemeBtn.addEventListener("click", toggleTheme);
+        // Theme toggle removed: force always-light
+        if (elThemeBtn) elThemeBtn.style.display = "none";
 
-        elModuleCustomer.addEventListener("click", () => setActiveModule("customer_reports"));
-        elModuleJsonRaw.addEventListener("click", () => setActiveModule("json_raw"));
-        elModuleXmlRaw.addEventListener("click", () => setActiveModule("xml_raw"));
+        if (elModuleCustomer) elModuleCustomer.addEventListener("click", () => setActiveModule("customer_reports"));
+        if (elModuleJsonRaw) elModuleJsonRaw.addEventListener("click", () => setActiveModule("json_raw"));
+        if (elModuleXmlRaw) elModuleXmlRaw.addEventListener("click", () => setActiveModule("xml_raw"));
 
-        elBtnJson.addEventListener("click", () => {
+        if (elBtnJson) elBtnJson.addEventListener("click", () => {
             currentMode = "JSON";
             elBtnJson.classList.add("active");
-            elBtnXml.classList.remove("active");
+            if (elBtnXml) elBtnXml.classList.remove("active");
             render();
         });
 
-        elBtnXml.addEventListener("click", () => {
+        if (elBtnXml) elBtnXml.addEventListener("click", () => {
             currentMode = "XML";
             elBtnXml.classList.add("active");
-            elBtnJson.classList.remove("active");
+            if (elBtnJson) elBtnJson.classList.remove("active");
             render();
         });
 
-        elReloadBtn.addEventListener("click", loadCustomerListOrSelf);
-        elLoadBtn.addEventListener("click", loadSelectedCustomerReport);
+        if (elReloadBtn) elReloadBtn.addEventListener("click", loadCustomerListOrSelf);
+        if (elLoadBtn) elLoadBtn.addEventListener("click", loadSelectedCustomerReport);
 
-        elLogoutBtn.addEventListener("click", logoutToLogin);
+        if (elLogoutBtn) elLogoutBtn.addEventListener("click", logoutToLogin);
 
-        elDownloadJson.addEventListener("click", () => {
+        if (elDownloadJson) elDownloadJson.addEventListener("click", () => {
             if (!currentReport) return;
             const parsed = safeJsonParse(currentReport.json);
             const content = parsed ? JSON.stringify(parsed, null, 2) : String(currentReport.json ?? "");
             downloadText(`${buildBaseFilename(currentReport)}.json`, content, "application/json");
         });
 
-        elDownloadXml.addEventListener("click", () => {
+        if (elDownloadXml) elDownloadXml.addEventListener("click", () => {
             if (!currentReport) return;
             downloadText(`${buildBaseFilename(currentReport)}.xml`, String(currentReport.xml ?? ""), "application/xml");
         });
 
-        elPrintBtn.addEventListener("click", () => {
+        if (elPrintBtn) elPrintBtn.addEventListener("click", () => {
             if (!currentReport) return;
 
-            // Force narrative view (PDF-ready). If user is on raw debug modules, switch back for printing.
             const prevModule = currentModule;
             if (prevModule !== "customer_reports") {
                 setActiveModule("customer_reports");
             }
 
-            // Ensure render is up to date before printing
             render();
 
             const base = buildBaseFilename(currentReport);
             const oldTitle = document.title;
             document.title = base;
 
-            // Let the DOM paint the latest changes before print dialog opens
             requestAnimationFrame(() => {
                 setTimeout(() => {
                     window.print();
 
-                    // Restore
                     setTimeout(() => {
                         document.title = oldTitle;
                         if (prevModule !== "customer_reports") setActiveModule(prevModule);
@@ -683,12 +674,10 @@
                 }, 150);
             });
         });
-
     }
 
     async function boot() {
-        const theme = localStorage.getItem("ecs_theme") || "light";
-        setTheme(theme);
+        forceLightTheme();
 
         if (!getToken()) {
             window.location.href = "login.html";
@@ -700,7 +689,6 @@
         await loadCustomerListOrSelf();
     }
 
-    // Init (works even if script loads late)
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => boot().catch(e => setError(String(e))));
     } else {
