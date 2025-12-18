@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"> <!-- Removed data-theme="light" 20251218 -->
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="utf-8" />
@@ -16,101 +16,95 @@
 </head>
 
 <body>
-    <div class="container">
-        <aside class="sidebar">
-            <div class="brand">
-                <div>
-                    <div class="brand-title">EUR COM SUITE</div>
-                    <div class="brand-sub">Reports Portal</div>
-                </div>
-                <!-- Removed the light themed button Start 20251218 -->
-                <!-- <button id="themeBtn" class="btn icon" title="Toggle theme">🌗</button> -->
-                <!--  Removed the light themed button End 20251218  -->
+    <div class="ecs-shell">
+        <header class="ecs-topbar">
+            <div>
+                <div class="ecs-brand">EUR COM SUITE</div>
+                <div class="ecs-breadcrumbs">Reports / Viewer</div>
             </div>
 
-            <div class="side-section">
-                <div class="side-title">Report modules</div>
-                <div class="nav">
-                    <button class="active" data-module="customer_reports" id="module_customer_reports">
+            <div class="ecs-topbar-right no-print">
+                <!-- themeBtn can exist; app.js hides it for always-light -->
+                <button id="themeBtn" class="btn btn-quiet" title="Theme" style="display:none;">🌗</button>
+                <button id="logoutBtn" class="btn">Logout</button>
+            </div>
+        </header>
+
+        <main class="ecs-main">
+            <aside class="ecs-sidebar no-print">
+                <div class="ecs-nav-title">Report modules</div>
+                <nav class="ecs-nav ecs-nav-buttons">
+                    <button class="active" data-module="customer_reports" id="module_customer_reports" type="button">
                         Customer Reports
-                        <span class="nav-sub">Narrative / PDF-ready</span>
+                        <span class="ecs-nav-sub">Narrative / PDF-ready</span>
                     </button>
 
-                    <button data-module="json_raw" id="module_json_raw">
+                    <button data-module="json_raw" id="module_json_raw" type="button">
                         JSON Raw (Debug)
-                        <span class="nav-sub">Pretty JSON text</span>
+                        <span class="ecs-nav-sub">Pretty JSON text</span>
                     </button>
 
-                    <button data-module="xml_raw" id="module_xml_raw">
+                    <button data-module="xml_raw" id="module_xml_raw" type="button">
                         XML Raw (Debug)
-                        <span class="nav-sub">Pretty XML text</span>
+                        <span class="ecs-nav-sub">Pretty XML text</span>
                     </button>
-                </div>
-            </div>
+                </nav>
 
-            <div class="side-section">
-                <div class="side-title">Session</div>
-                <div class="kv">
-                    <div class="kv-row">
-                        <div class="kv-key">User</div>
-                        <div class="kv-val" id="sideUser">-</div>
-                    </div>
-                    <div class="kv-row">
-                        <div class="kv-key">Role</div>
-                        <div class="kv-val" id="sideRole">-</div>
-                    </div>
-                    <div class="kv-row">
-                        <div class="kv-key">Customer</div>
-                        <div class="kv-val" id="sideCustomer">-</div>
+                <div class="ecs-section">
+                    <div class="ecs-nav-title">Session</div>
+                    <div class="ecs-card">
+                        <div class="ecs-kv">
+                            <div class="k">User</div>
+                            <div class="v" id="sideUser">-</div>
+                            <div class="k">Role</div>
+                            <div class="v" id="sideRole">-</div>
+                            <div class="k">Customer</div>
+                            <div class="v" id="sideCustomer">-</div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </aside>
 
-            <div class="side-section">
-                <div class="side-title">Actions</div>
-                <div class="nav">
-                    <button id="logoutBtn">Logout</button>
-                </div>
-            </div>
-        </aside>
-
-        <main class="main">
-            <div class="topbar">
-                <div>
-                    <h1 class="h1" id="pageTitle">Customer Reports</h1>
-                    <div class="sub" id="pageSub">Readable narrative view (paragraphs) — PDF-ready</div>
-                </div>
-
-                <div class="actions">
-                    <select id="customerSelect" class="btn select" style="min-width:220px;"></select>
-                    <button id="reloadBtn" class="btn">Reload</button>
-                    <button id="loadBtn" class="btn primary">Load Report</button>
-                </div>
-            </div>
-
-            <section class="card">
-                <div class="meta">
-                    <div class="pill"><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
-                    <div class="pill"><b>Generated:</b> <span id="generatedAtLabel">-</span></div>
-                    <div class="pill"><b>Run:</b> <span id="runIdLabel">-</span></div>
-                </div>
-
-                <div class="toolbar">
-                    <div class="segment">
-                        <button id="btnJson" class="active">JSON</button>
-                        <button id="btnXml">XML</button>
+            <section class="ecs-content">
+                <div class="ecs-pagehead">
+                    <div>
+                        <h1 id="pageTitle">Customer Reports</h1>
+                        <div class="small" id="pageSub">Readable narrative view — PDF-ready</div>
                     </div>
 
-                    <button id="downloadJsonBtn" class="btn">Download JSON</button>
-                    <button id="downloadXmlBtn" class="btn">Download XML</button>
-                    <button id="printBtn" class="btn">Print / Save PDF</button>
+                    <div class="ecs-pagehead-actions no-print">
+                        <select id="customerSelect" class="ecs-compact"></select>
+                        <button id="reloadBtn" class="btn">Reload</button>
+                        <button id="loadBtn" class="btn btn-primary">Load Report</button>
+                    </div>
                 </div>
 
-                <div id="statusMessage" class="status"></div>
-                <div id="errorMessage" class="error"></div>
+                <div class="ecs-card">
+                    <div class="meta">
+                        <div class="pill"><b>CustomerId:</b> <span id="customerIdLabel">-</span></div>
+                        <div class="pill"><b>Generated:</b> <span id="generatedAtLabel">-</span></div>
+                        <div class="pill"><b>Run:</b> <span id="runIdLabel">-</span></div>
+                    </div>
 
-                <div id="narrativeContainer" class="narrative"></div>
-                <pre id="rawContainer" class="code" style="display:none;"></pre>
+                    <div class="toolbar no-print">
+                        <div class="segment">
+                            <button id="btnJson" class="active" type="button">JSON</button>
+                            <button id="btnXml" type="button">XML</button>
+                        </div>
+
+                        <div class="toolbar-spacer"></div>
+
+                        <button id="downloadJsonBtn" class="btn" type="button">Download JSON</button>
+                        <button id="downloadXmlBtn" class="btn" type="button">Download XML</button>
+                        <button id="printBtn" class="btn" type="button">Print / Save PDF</button>
+                    </div>
+
+                    <div id="statusMessage" class="status"></div>
+                    <div id="errorMessage" class="error"></div>
+
+                    <div id="narrativeContainer" class="narrative"></div>
+                    <pre id="rawContainer" class="code" style="display:none;"></pre>
+                </div>
             </section>
         </main>
     </div>
