@@ -85,10 +85,15 @@ def login(payload: dict):
         if not verify_password(password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        cur.execute("UPDATE ecs_users SET last_login_at = datetime('now') WHERE id = ?", (row["id"],))
+        cur.execute(
+            "UPDATE ecs_users SET last_login_at = datetime('now') WHERE id = ?",
+            (row["id"],),
+        )
         conn.commit()
 
-        token = create_access_token(sub=row["username"], role=row["role"], user_id=row["id"])
+        token = create_access_token(
+            sub=row["username"], role=row["role"], user_id=row["id"]
+        )
         return {
             "access_token": token,
             "token_type": "bearer",
@@ -103,7 +108,7 @@ def login(payload: dict):
         conn.close()
 
 
-def get_current_user(authorization: str=Header(default="")):
+def get_current_user(authorization: str = Header(default="")):
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
@@ -268,4 +273,3 @@ def debug_customer_report_sample(user=Depends(require_customer)):
         return {"ok": True, "columns": list(data.keys()), "preview": preview}
     finally:
         conn.close()
-
