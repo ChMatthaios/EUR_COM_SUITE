@@ -19,6 +19,9 @@
     const elPageSub = $("pageSub");
 
     const elCustomerSelect = $("customerSelect");
+    const elCustomerSearchInput = $("customerSearchInput");
+    const elCustomerSearchBtn = $("customerSearchBtn");
+    const elCustomerSearchResults = $("customerSearchResults");
     const elReloadBtn = $("reloadBtn");
     const elLoadBtn = $("loadBtn");
     const elLogoutBtn = $("logoutBtn");
@@ -739,33 +742,111 @@
             return;
         }
 
-        if (elCustomerSelect) elCustomerSelect.style.display = "";
+        
+        // EMPLOYEE/ADMIN:
+        // Do NOT bulk-load 100K customers into a <select> (it freezes the UI and causes the "black box").
+        // Instead we keep a hidden customerSelect (selected customer_id) and use server-side search.
+        if (elCustomerSelect) elCustomerSelect.value = "";
         if (elReloadBtn) elReloadBtn.style.display = "";
 
-        const res = await apiFetch("/customers");
-        const customers = await res.json();
+        if (elCustomerSearchInput) {
+            elCustomerSearchInput.value = "";
+            elCustomerSearchInput.placeholder = "Search (Tier, name, surname, ID)…";
+        }
+        if (elCustomerSearchResults) elCustomerSearchResults.innerHTML = "";
 
-        if (!elCustomerSelect) return;
-
-        elCustomerSelect.innerHTML = "";
-        const placeholder = document.createElement("option");
-        placeholder.value = "";
-        placeholder.textContent = "Select customer...";
-        elCustomerSelect.appendChild(placeholder);
-
-        (customers || []).forEach((c) => {
-            const id = c.customer_id;
-            if (id == null) return;
-            const opt = document.createElement("option");
-            opt.value = String(id);
-            opt.textContent = String(id);
-            elCustomerSelect.appendChild(opt);
-        });
-
-        setStatus("Customer list loaded. Select a customer and Load Report.");
+        setStatus("Type to search a customer, pick one, then click Load Report.");
     }
 
-    async function loadSelectedCustomerReport() {
+    
+
+    // -----------------------------
+    // Employee customer search (server-side, debounced, cancellable)
+    // -----------------------------
+    let activeCustomerSearchController = null;
+
+    function debounce(fn, wait = 300) {
+        let t = null;
+        return (...args) => {
+            if (t) clearTimeout(t);
+            t = setTimeout(() => fn(...args), wait);
+        };
+    }
+
+    async function searchCustomersLight() {
+        const user = getStoredUser();
+        if (!user || !getToken()) {
+            logoutToLogin();
+            return;
+        }
+        if (user.role === "CUSTOMER") return; // customers don't search others
+
+        if (!elCustomerSearchInput || !elCustomerSearchResults) return;
+
+        const raw = (elCustomerSearchInput.value || "").trim();
+        if (!raw) {
+            elCustomerSearchResults.innerHTML = "";
+            return;
+        }
+
+        // Cancel previous request
+        if (activeCustomerSearchController) activeCustomerSearchController.abort();
+        activeCustomerSearchController = new AbortController();
+
+        const params = new URLSearchParams();
+        // allow power users to do quick filters like: tier:High surname:Smith id:123
+        // but keep it simple: we send raw as q, server will match id/name/surname/tier where available
+        params.set("q", raw);
+        params.set("limit", "25");
+        params.set("offset", "0");
+
+        try {
+            const res = await apiFetch(`/customers/search?${params.toString()}`, {
+                signal: activeCustomerSearchController.signal,
+            });
+            const data = await res.json();
+            const items = (data && data.items) ? data.items : [];
+
+            if (!items.length) {
+                elCustomerSearchResults.innerHTML = '<div class="ecs-muted">No matches.</div>';
+                return;
+            }
+
+            elCustomerSearchResults.innerHTML = items
+                .map((c) => {
+                    const cid = c.customer_id ?? "";
+                    const nm = [c.surname, c.name].filter(Boolean).join(" ").trim();
+                    const tier = c.tier ? ` • Tier: ${escapeHtml(String(c.tier))}` : "";
+                    return `
+                        <button class="ecs-result-item" data-cid="${escapeHtml(String(cid))}">
+                            <div class="ecs-result-main">
+                                <div class="ecs-result-title">${escapeHtml(nm || String(cid))}</div>
+                                <div class="ecs-result-sub">ID: ${escapeHtml(String(cid))}${tier}</div>
+                            </div>
+                        </button>
+                    `;
+                })
+                .join("");
+
+            elCustomerSearchResults.querySelectorAll("[data-cid]").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const cid = btn.getAttribute("data-cid");
+                    if (elCustomerSelect) elCustomerSelect.value = cid;
+                    setStatus(`Selected customer_id=${cid}. Click Load Report.`);
+                    // collapse results (optional)
+                    elCustomerSearchResults.innerHTML = "";
+                    if (elCustomerSearchInput) elCustomerSearchInput.value = cid;
+                });
+            });
+        } catch (err) {
+            if (err && err.name === "AbortError") return;
+            elCustomerSearchResults.innerHTML = `<div class="ecs-error">Search failed: ${escapeHtml(String(err))}</div>`;
+        }
+    }
+
+    const searchCustomersLightDebounced = debounce(searchCustomersLight, 300);
+
+async function loadSelectedCustomerReport() {
         setError("");
         setStatus("Loading report...");
 
@@ -818,6 +899,8 @@
         });
 
         if (elReloadBtn) elReloadBtn.addEventListener("click", loadCustomerListOrSelf);
+        if (elCustomerSearchInput) elCustomerSearchInput.addEventListener("input", searchCustomersLightDebounced);
+        if (elCustomerSearchBtn) elCustomerSearchBtn.addEventListener("click", searchCustomersLight);
         if (elLoadBtn) elLoadBtn.addEventListener("click", loadSelectedCustomerReport);
 
         if (elLogoutBtn) elLogoutBtn.addEventListener("click", logoutToLogin);

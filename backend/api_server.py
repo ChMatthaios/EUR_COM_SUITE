@@ -43,6 +43,19 @@ def get_conn() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_table_columns(conn, table_name: str) -> list[str]:
+    """
+    Returns a list of column names for a given table.
+    If the table does not exist, returns an empty list.
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        rows = cursor.fetchall()
+        return [row[1] for row in rows]  # row[1] = column name
+    except Exception as e:
+        print(f"[WARN] get_table_columns failed for {table_name}: {e}")
+        return []
 
 def row_to_dict(r: sqlite3.Row) -> dict:
     return dict(r)
@@ -51,7 +64,6 @@ def row_to_dict(r: sqlite3.Row) -> dict:
 @app.get("/api/health")
 def health():
     return {"ok": True, "dbPath": str(DB_PATH)}
-
 
 # -----------------------------
 # Auth endpoints
@@ -212,6 +224,203 @@ def get_customer(customer_id: int, user=Depends(require_employee)):
 # -----------------------------
 # Customer secure endpoint
 # -----------------------------
+
+# -----------------------------
+# Employee-only customer search (fast, no report rendering)
+# -----------------------------
+
+
+@app.get("/api/customers/search")
+def search_customers(
+    q: str | None = None,
+    tier: str | None = None,
+    customer_id: str | None = None,
+    name: str | None = None,
+    surname: str | None = None,
+    limit: int = 25,
+    offset: int = 0,
+    user=Depends(require_employee),
+):
+    """Lightweight customer search for 100K+ records.
+    Returns ONLY identity fields (no report payload), so the UI doesn't trigger heavy rendering.
+    """
+    conn = get_conn()
+    try:
+        cols = get_table_columns(conn, "ecs_customers")
+        have_customers = bool(cols)
+
+        where = []
+        params = {}
+
+        # If we have ecs_customers with identity columns, prefer it.
+        if have_customers and {"customer_id"}.issubset(cols):
+            # allow optional fields if present
+            if tier and "tier" in cols:
+                where.append("ec.tier = :tier")
+                params["tier"] = tier
+
+            if customer_id:
+                where.append("CAST(ec.customer_id AS TEXT) = :customer_id")
+                params["customer_id"] = str(customer_id).strip()
+
+            if name and "name" in cols:
+                where.append("LOWER(ec.name) LIKE LOWER(:name)")
+                params["name"] = f"%{name.strip()}%"
+
+            if surname and "surname" in cols:
+                where.append("LOWER(ec.surname) LIKE LOWER(:surname)")
+                params["surname"] = f"%{surname.strip()}%"
+
+            if q:
+                qv = q.strip()
+                # match by id exact OR name/surname partial (if available)
+                parts = ["CAST(ec.customer_id AS TEXT) = :q_exact"]
+                params["q_exact"] = qv
+                params["q_like"] = f"%{qv}%"
+                if "name" in cols:
+                    parts.append("LOWER(ec.name) LIKE LOWER(:q_like)")
+                if "surname" in cols:
+                    parts.append("LOWER(ec.surname) LIKE LOWER(:q_like)")
+                where.append("(" + " OR ".join(parts) + ")")
+
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+            sql = f"""
+                SELECT
+                    ec.customer_id,
+                    { "ec.name" if "name" in cols else "NULL AS name" },
+                    { "ec.surname" if "surname" in cols else "NULL AS surname" },
+                    { "ec.tier" if "tier" in cols else "NULL AS tier" }
+                FROM ecs_customers ec
+                {where_sql}
+                ORDER BY
+                    { "ec.surname" if "surname" in cols else "ec.customer_id" } ASC,
+                    { "ec.name" if "name" in cols else "ec.customer_id" } ASC
+                LIMIT :limit OFFSET :offset
+            """
+        else:
+            # Fallback: search only by customer_id from reports table (still lightweight).
+            if customer_id:
+                where.append("CAST(customer_id AS TEXT) = :customer_id")
+                params["customer_id"] = str(customer_id).strip()
+            elif q:
+                where.append("CAST(customer_id AS TEXT) LIKE :q_like")
+                params["q_like"] = f"%{q.strip()}%"
+            else:
+                # avoid returning all 100K rows accidentally
+                return {"items": [], "limit": limit, "offset": offset}
+
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+            sql = f"""
+                SELECT DISTINCT customer_id, NULL AS name, NULL AS surname, NULL AS tier
+                FROM ecs_customer_rpt
+                {where_sql}
+                ORDER BY customer_id ASC
+                LIMIT :limit OFFSET :offset
+            """
+
+        params["limit"] = int(limit)
+        params["offset"] = int(offset)
+
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        # rows may be sqlite3.Row
+        items = [
+            (
+                row_to_dict(r)
+                if hasattr(r, "keys")
+                else {"customer_id": r[0], "name": r[1], "surname": r[2], "tier": r[3]}
+            )
+            for r in rows
+        ]
+        return {"items": items, "limit": params["limit"], "offset": params["offset"]}
+    finally:
+        conn.close()
+
+
+@app.get("/api/customers/balance-tiers")
+def customer_balance_tiers(user=Depends(require_employee)):
+    """Tier split based on the provided SQL (Customers_Ordering.sql)."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        sql = f"""
+        SELECT
+            ea.status,
+            ea.account_type,
+            {BALANCE_TIER_CASE} AS BalanceClassificatons,
+            COUNT(DISTINCT ec.customer_id) AS Customers,
+            COUNT(DISTINCT ea.account_id) AS Accounts
+        FROM ecs_customers ec
+        INNER JOIN ecs_accounts ea ON ec.customer_id = ea.customer_id
+        GROUP BY
+            ea.status,
+            ea.account_type,
+            {BALANCE_TIER_CASE}
+        ORDER BY
+            BalanceClassificatons, ea.status, ea.account_type
+        """
+        cur.execute(sql)
+        rows = cur.fetchall()
+        return {"items": [row_to_dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@app.get("/api/customers/by-balance-tier")
+def customers_by_balance_tier(
+    tier: str,
+    status: str | None = None,
+    account_type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    user=Depends(require_employee),
+):
+    """List customers that fall into a given BalanceClassificatons tier."""
+    conn = get_conn()
+    try:
+        where = [f"{BALANCE_TIER_CASE} = :tier"]
+        params = {"tier": tier, "limit": int(limit), "offset": int(offset)}
+
+        if status:
+            where.append("ea.status = :status")
+            params["status"] = status
+        if account_type:
+            where.append("ea.account_type = :account_type")
+            params["account_type"] = account_type
+
+        where_sql = " AND ".join(where)
+
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT
+                ec.customer_id,
+                ec.name,
+                ec.surname,
+                ea.account_id,
+                ea.status,
+                ea.account_type,
+                ea.balance,
+                {BALANCE_TIER_CASE} AS BalanceClassificatons
+            FROM ecs_customers ec
+            INNER JOIN ecs_accounts ea ON ec.customer_id = ea.customer_id
+            WHERE {where_sql}
+            ORDER BY ec.surname ASC, ec.name ASC
+            LIMIT :limit OFFSET :offset
+            """,
+            params,
+        )
+        rows = cur.fetchall()
+        return {
+            "items": [row_to_dict(r) for r in rows],
+            "limit": params["limit"],
+            "offset": params["offset"],
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/api/customer/reports")
 def get_my_reports(user=Depends(require_customer)):
     customer_id = user.get("customer_id")

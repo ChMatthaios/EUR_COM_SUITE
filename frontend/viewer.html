@@ -73,10 +73,16 @@
                     </div>
 
                     <div class="ecs-pagehead-actions no-print">
-                        <select id="customerSelect" class="ecs-compact"></select>
-                        <button id="reloadBtn" class="btn">Reload</button>
-                        <button id="loadBtn" class="btn btn-primary">Load Report</button>
-                    </div>
+    <div class="ecs-searchbar">
+        <input id="customerSearchInput" class="ecs-compact" placeholder="Search (Tier, name, surname, ID)..." autocomplete="off" />
+        <button id="customerSearchBtn" class="btn">Search</button>
+        <button id="reloadBtn" class="btn">Reload</button>
+        <button id="loadBtn" class="btn btn-primary">Load Report</button>
+    </div>
+    <div id="customerSearchResults" class="ecs-search-results"></div>
+    <!-- keep existing JS bindings; this now holds the selected customer_id -->
+    <input type="hidden" id="customerSelect" />
+</div>
                 </div>
 
                 <div class="ecs-card">
