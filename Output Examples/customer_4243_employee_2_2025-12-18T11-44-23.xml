@@ -1,0 +1,184 @@
+<CustomerUnifiedReport schemaVersion="1.0" asOfDate="2025-12-16" customerId="4243">
+	<Modules>
+		<ACCOUNTS>
+			<payload>
+				<accounts/>
+			</payload>
+		</ACCOUNTS>
+		<CARDS>
+			<payload>
+				<cards>
+					<item>
+						<cardId>29090</cardId>
+						<accountId>4243</accountId>
+						<panLast4>4242</panLast4>
+						<cardType>DEBIT</cardType>
+						<status>ACTIVE</status>
+						<issuedAt>2025-12-16 11:36:55</issuedAt>
+						<expiresOn>2028-12-16</expiresOn>
+						<openAuthorizations>
+							<item>
+								<authId>245233</authId>
+								<accountId>29090</accountId>
+								<amount>40.9</amount>
+								<merchant>Merchant 4089</merchant>
+								<authTs>2025-12-16 11:40:27</authTs>
+								<status>APPROVED</status>
+								<reference>AUTH-SEED-29089</reference>
+							</item>
+						</openAuthorizations>
+						<recentSettlements/>
+					</item>
+					<item>
+						<cardId>29091</cardId>
+						<accountId>4243</accountId>
+						<panLast4>4242</panLast4>
+						<cardType>DEBIT</cardType>
+						<status>ACTIVE</status>
+						<issuedAt>2025-12-16 11:36:55</issuedAt>
+						<expiresOn>2028-12-16</expiresOn>
+						<openAuthorizations/>
+						<recentSettlements/>
+					</item>
+				</cards>
+			</payload>
+		</CARDS>
+		<COMPLIANCE>
+			<payload>
+				<flags>
+					<item>
+						<flagId>29089</flagId>
+						<accountId>4243</accountId>
+						<severity>LOW</severity>
+						<category>KYC</category>
+						<note>Seed flag #4242</note>
+						<createdAt>2025-12-16 11:45:44</createdAt>
+						<status>OPEN</status>
+					</item>
+				</flags>
+				<limit>50</limit>
+			</payload>
+		</COMPLIANCE>
+		<CUSTOMER_PROFILE>
+			<payload>
+				<customer>
+					<customerId>4243</customerId>
+					<firstName>First24240</firstName>
+					<lastName>Last24240</lastName>
+					<email>user24240@bank.local</email>
+					<createdAt>2025-12-16 08:38:47</createdAt>
+				</customer>
+				<contacts>
+					<item>
+						<type>EMAIL</type>
+						<value>user4243@bank.local</value>
+						<isPrimary>1</isPrimary>
+					</item>
+					<item>
+						<type>PHONE</type>
+						<value>+306900004243</value>
+						<isPrimary>1</isPrimary>
+					</item>
+				</contacts>
+				<addresses>
+					<item>
+						<addrType>HOME</addrType>
+						<isPrimary>1</isPrimary>
+						<line1>Street 43530</line1>
+						<line2>Apt 30</line2>
+						<city>Athens</city>
+						<region>GR</region>
+						<postalCode>53530</postalCode>
+						<country>Greece</country>
+					</item>
+				</addresses>
+				<kycDocuments>
+					<item>
+						<docType>NATIONAL_ID</docType>
+						<docNumber>DOC0000004243</docNumber>
+						<issuedBy>GR</issuedBy>
+						<expiresOn>2036-08-12</expiresOn>
+					</item>
+				</kycDocuments>
+			</payload>
+		</CUSTOMER_PROFILE>
+		<FEES>
+			<payload>
+				<fees/>
+				<limit>50</limit>
+			</payload>
+		</FEES>
+		<LOANS>
+			<payload>
+				<loans/>
+			</payload>
+		</LOANS>
+		<TRANSACTIONS>
+			<payload>
+				<transactions>
+					<item>
+						<source>ecs_transactions</source>
+						<transactionId>300010</transactionId>
+						<accountId>4243</accountId>
+						<type>DEPOSIT</type>
+						<amount>12.5</amount>
+						<timestamp>2025-12-16 10:08:01</timestamp>
+						<description>Transfer from ACCT-0000004242</description>
+						<transferId>T-20251216100801.582-4242-4243</transferId>
+					</item>
+					<item>
+						<source>ecs_transactions</source>
+						<transactionId>300007</transactionId>
+						<accountId>4243</accountId>
+						<type>DEPOSIT</type>
+						<amount>33.33</amount>
+						<timestamp>2025-12-16 09:10:39</timestamp>
+						<description>Transfer from acct 4242</description>
+						<transferId>T-20251216091033.316-4242-4243</transferId>
+					</item>
+					<item>
+						<source>ecs_transactions</source>
+						<transactionId>300005</transactionId>
+						<accountId>4243</accountId>
+						<type>DEPOSIT</type>
+						<amount>12.5</amount>
+						<timestamp>2025-12-16 09:05:31</timestamp>
+						<description>Transfer from acct 4242</description>
+						<transferId/>
+					</item>
+					<item>
+						<source>ecs_transactions</source>
+						<transactionId>72721</transactionId>
+						<accountId>4243</accountId>
+						<type>DEPOSIT</type>
+						<amount>42.43</amount>
+						<timestamp>2025-12-16 08:50:48</timestamp>
+						<description>Seed txn #4242</description>
+						<transferId/>
+					</item>
+					<item>
+						<source>ecs_transactions</source>
+						<transactionId>72722</transactionId>
+						<accountId>4243</accountId>
+						<type>DEPOSIT</type>
+						<amount>42.43</amount>
+						<timestamp>2025-12-16 08:50:48</timestamp>
+						<description>Seed txn #104242</description>
+						<transferId/>
+					</item>
+					<item>
+						<source>ecs_transactions</source>
+						<transactionId>72723</transactionId>
+						<accountId>4243</accountId>
+						<type>WITHDRAWAL</type>
+						<amount>42.43</amount>
+						<timestamp>2025-12-16 08:50:48</timestamp>
+						<description>Seed txn #204242</description>
+						<transferId/>
+					</item>
+				</transactions>
+				<limit>50</limit>
+			</payload>
+		</TRANSACTIONS>
+	</Modules>
+</CustomerUnifiedReport>

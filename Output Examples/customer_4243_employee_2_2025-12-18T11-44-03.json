@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "1.0",
+  "asOfDate": "2025-12-16",
+  "customerId": 4243,
+  "modules": {
+    "ACCOUNTS": {
+      "accounts": []
+    },
+    "CARDS": {
+      "cards": [
+        {
+          "cardId": 29090,
+          "accountId": 4243,
+          "panLast4": "4242",
+          "cardType": "DEBIT",
+          "status": "ACTIVE",
+          "issuedAt": "2025-12-16 11:36:55",
+          "expiresOn": "2028-12-16",
+          "openAuthorizations": [
+            {
+              "authId": 245233,
+              "accountId": 29090,
+              "amount": 40.9,
+              "merchant": "Merchant 4089",
+              "authTs": "2025-12-16 11:40:27",
+              "status": "APPROVED",
+              "reference": "AUTH-SEED-29089"
+            }
+          ],
+          "recentSettlements": []
+        },
+        {
+          "cardId": 29091,
+          "accountId": 4243,
+          "panLast4": "4242",
+          "cardType": "DEBIT",
+          "status": "ACTIVE",
+          "issuedAt": "2025-12-16 11:36:55",
+          "expiresOn": "2028-12-16",
+          "openAuthorizations": [],
+          "recentSettlements": []
+        }
+      ]
+    },
+    "COMPLIANCE": {
+      "flags": [
+        {
+          "flagId": 29089,
+          "accountId": 4243,
+          "severity": "LOW",
+          "category": "KYC",
+          "note": "Seed flag #4242",
+          "createdAt": "2025-12-16 11:45:44",
+          "status": "OPEN"
+        }
+      ],
+      "limit": 50
+    },
+    "CUSTOMER_PROFILE": {
+      "customer": {
+        "customerId": 4243,
+        "firstName": "First24240",
+        "lastName": "Last24240",
+        "email": "user24240@bank.local",
+        "createdAt": "2025-12-16 08:38:47"
+      },
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "value": "user4243@bank.local",
+          "isPrimary": 1
+        },
+        {
+          "type": "PHONE",
+          "value": "+306900004243",
+          "isPrimary": 1
+        }
+      ],
+      "addresses": [
+        {
+          "addrType": "HOME",
+          "isPrimary": 1,
+          "line1": "Street 43530",
+          "line2": "Apt 30",
+          "city": "Athens",
+          "region": "GR",
+          "postalCode": "53530",
+          "country": "Greece"
+        }
+      ],
+      "kycDocuments": [
+        {
+          "docType": "NATIONAL_ID",
+          "docNumber": "DOC0000004243",
+          "issuedBy": "GR",
+          "expiresOn": "2036-08-12"
+        }
+      ]
+    },
+    "FEES": {
+      "fees": [],
+      "limit": 50
+    },
+    "LOANS": {
+      "loans": []
+    },
+    "TRANSACTIONS": {
+      "transactions": [
+        {
+          "source": "ecs_transactions",
+          "transactionId": 300010,
+          "accountId": 4243,
+          "type": "DEPOSIT",
+          "amount": 12.5,
+          "timestamp": "2025-12-16 10:08:01",
+          "description": "Transfer from ACCT-0000004242",
+          "transferId": "T-20251216100801.582-4242-4243"
+        },
+        {
+          "source": "ecs_transactions",
+          "transactionId": 300007,
+          "accountId": 4243,
+          "type": "DEPOSIT",
+          "amount": 33.33,
+          "timestamp": "2025-12-16 09:10:39",
+          "description": "Transfer from acct 4242",
+          "transferId": "T-20251216091033.316-4242-4243"
+        },
+        {
+          "source": "ecs_transactions",
+          "transactionId": 300005,
+          "accountId": 4243,
+          "type": "DEPOSIT",
+          "amount": 12.5,
+          "timestamp": "2025-12-16 09:05:31",
+          "description": "Transfer from acct 4242",
+          "transferId": null
+        },
+        {
+          "source": "ecs_transactions",
+          "transactionId": 72721,
+          "accountId": 4243,
+          "type": "DEPOSIT",
+          "amount": 42.43,
+          "timestamp": "2025-12-16 08:50:48",
+          "description": "Seed txn #4242",
+          "transferId": null
+        },
+        {
+          "source": "ecs_transactions",
+          "transactionId": 72722,
+          "accountId": 4243,
+          "type": "DEPOSIT",
+          "amount": 42.43,
+          "timestamp": "2025-12-16 08:50:48",
+          "description": "Seed txn #104242",
+          "transferId": null
+        },
+        {
+          "source": "ecs_transactions",
+          "transactionId": 72723,
+          "accountId": 4243,
+          "type": "WITHDRAWAL",
+          "amount": 42.43,
+          "timestamp": "2025-12-16 08:50:48",
+          "description": "Seed txn #204242",
+          "transferId": null
+        }
+      ],
+      "limit": 50
+    }
+  }
+}
