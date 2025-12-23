@@ -11,7 +11,6 @@
 
     <title>Reports Viewer — EUR COM SUITE</title>
 
-    <!-- CSS placeholder (we’ll set href with a timestamp) -->
     <link id="appCss" rel="stylesheet" href="styles.css" />
 </head>
 
@@ -24,7 +23,6 @@
             </div>
 
             <div class="ecs-topbar-right no-print">
-                <!-- themeBtn can exist; app.js hides it for always-light -->
                 <button id="themeBtn" class="btn btn-quiet" title="Theme" style="display:none;">🌗</button>
                 <button id="logoutBtn" class="btn">Logout</button>
             </div>
@@ -72,17 +70,16 @@
                         <div class="small" id="pageSub">Readable narrative view — PDF-ready</div>
                     </div>
 
+                    <!-- Clean + simple: full customers list (paginated), no search, no tier -->
                     <div class="ecs-pagehead-actions no-print">
-    <div class="ecs-searchbar">
-        <input id="customerSearchInput" class="ecs-compact" placeholder="Search (Tier, name, surname, ID)..." autocomplete="off" />
-        <button id="customerSearchBtn" class="btn">Search</button>
-        <button id="reloadBtn" class="btn">Reload</button>
-        <button id="loadBtn" class="btn btn-primary">Load Report</button>
-    </div>
-    <div id="customerSearchResults" class="ecs-search-results"></div>
-    <!-- keep existing JS bindings; this now holds the selected customer_id -->
-    <input type="hidden" id="customerSelect" />
-</div>
+                        <div class="ecs-searchbar">
+                            <select id="customerSelect" class="ecs-compact"></select>
+                            <button id="prevCustomersBtn" class="btn" type="button">Prev</button>
+                            <button id="nextCustomersBtn" class="btn" type="button">Next</button>
+                            <button id="reloadBtn" class="btn" type="button">Reload</button>
+                            <button id="loadBtn" class="btn btn-primary" type="button">Load Report</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="ecs-card">
@@ -115,7 +112,6 @@
         </main>
     </div>
 
-    <!-- Cache-bust: load assets with unique timestamp -->
     <script>
         (function () {
             const v = Date.now();

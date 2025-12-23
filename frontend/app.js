@@ -18,10 +18,10 @@
     const elPageTitle = $("pageTitle");
     const elPageSub = $("pageSub");
 
+    // Customers list (employee only)
     const elCustomerSelect = $("customerSelect");
-    const elCustomerSearchInput = $("customerSearchInput");
-    const elCustomerSearchBtn = $("customerSearchBtn");
-    const elCustomerSearchResults = $("customerSearchResults");
+    const elPrevCustomersBtn = $("prevCustomersBtn");
+    const elNextCustomersBtn = $("nextCustomersBtn");
     const elReloadBtn = $("reloadBtn");
     const elLoadBtn = $("loadBtn");
     const elLogoutBtn = $("logoutBtn");
@@ -46,9 +46,14 @@
     // -----------------------------
     // State
     // -----------------------------
-    let currentMode = "JSON"; // JSON or XML (narrative rendering mode)
+    let currentMode = "JSON"; // JSON or XML
     let currentModule = "customer_reports"; // customer_reports | json_raw | xml_raw
     let currentReport = null;
+
+    // customers pagination (employee only)
+    const PAGE_LIMIT = 1000;
+    let customersOffset = 0;
+    let lastPageSize = 0;
 
     // -----------------------------
     // Helpers
@@ -71,16 +76,34 @@
         return t ? { ...extra, Authorization: `Bearer ${t}` } : extra;
     }
 
+    async function readErrorDetail(res) {
+        try {
+            const data = await res.json();
+            if (typeof data === "string") return data;
+            if (data?.detail) return (typeof data.detail === "string") ? data.detail : JSON.stringify(data.detail);
+            return JSON.stringify(data);
+        } catch {
+            try { return await res.text(); } catch { return `HTTP ${res.status}`; }
+        }
+    }
+
     async function apiFetch(path, options = {}) {
         const res = await fetch(`${API_BASE}${path}`, {
             ...options,
             headers: authHeaders(options.headers || {}),
             cache: "no-store",
         });
+
         if (res.status === 401) {
             logoutToLogin();
             throw new Error("Unauthorized (missing/expired token)");
         }
+
+        if (!res.ok) {
+            const detail = await readErrorDetail(res);
+            throw new Error(`API ${res.status} ${res.statusText}: ${detail}`);
+        }
+
         return res;
     }
 
@@ -187,7 +210,7 @@
     }
 
     // -----------------------------
-    // Normalization (JSON + XML)
+    // Normalization
     // -----------------------------
     const NOISY_KEYS = new Set(["payload", "item"]);
 
@@ -195,7 +218,6 @@
         if (!obj || typeof obj !== "object") return obj;
         if (Array.isArray(obj)) return obj.map(normalizeObject);
 
-        // unwrap noisy wrapper if single key
         if (Object.keys(obj).length === 1) {
             const onlyKey = Object.keys(obj)[0];
             if (NOISY_KEYS.has(onlyKey)) return normalizeObject(obj[onlyKey]);
@@ -218,161 +240,33 @@
     }
 
     // -----------------------------
-    // XML -> object
+    // XML -> report-like json
     // -----------------------------
-    function xmlElementToObject(node) {
-        if (!node || node.nodeType !== 1) return null;
-
-        const obj = {};
-        if (node.attributes && node.attributes.length) {
-            for (const a of node.attributes) obj[`@${a.name}`] = a.value;
-        }
-
-        const children = Array.from(node.children || []);
-        const text = (node.textContent || "").trim();
-
-        if (children.length === 0) {
-            if (Object.keys(obj).length === 0) return text;
-            obj["#text"] = text;
-            return obj;
-        }
-
-        for (const child of children) {
-            const key = child.nodeName;
-            const val = xmlElementToObject(child);
-            if (obj[key] === undefined) obj[key] = val;
-            else if (Array.isArray(obj[key])) obj[key].push(val);
-            else obj[key] = [obj[key], val];
-        }
-
-        return obj;
-    }
-
-    // Unwrap { "#text": "..." } or { "@x": "...", "#text": "..." } => "..."
-    function unwrapXmlTextNodesDeep(node) {
-        if (node == null) return node;
-        if (Array.isArray(node)) return node.map(unwrapXmlTextNodesDeep);
-
-        if (typeof node === "object") {
-            const keys = Object.keys(node);
-
-            if (keys.length === 1 && keys[0] === "#text") return unwrapXmlTextNodesDeep(node["#text"]);
-
-            const hasText = keys.includes("#text");
-            const onlyAttrsAndText = hasText && keys.every(k => k === "#text" || k.startsWith("@"));
-            if (onlyAttrsAndText) return unwrapXmlTextNodesDeep(node["#text"]);
-
-            const out = {};
-            for (const [k, v] of Object.entries(node)) out[k] = unwrapXmlTextNodesDeep(v);
-            return out;
-        }
-
-        return node;
-    }
-
-    //  IMPORTANT: Lift generic XML list containers like { item: [...] } into [...]
-    // This is what fixes your "Accounts: 1 / Cards: 2" issue.
-    function liftItemListsDeep(node) {
-        if (node == null) return node;
-        if (Array.isArray(node)) return node.map(liftItemListsDeep);
-
-        if (typeof node === "object") {
-            // if exactly { item: X } => return X (array or wrap to array)
-            const keys = Object.keys(node);
-            if (keys.length === 1 && keys[0].toLowerCase() === "item") {
-                const lifted = liftItemListsDeep(node[keys[0]]);
-                return Array.isArray(lifted) ? lifted : (lifted == null ? [] : [lifted]);
-            }
-
-            const out = {};
-            for (const [k, v] of Object.entries(node)) {
-                let next = liftItemListsDeep(v);
-
-                // if value is { item: ... } lift it here too
-                if (next && typeof next === "object" && !Array.isArray(next)) {
-                    const k2 = Object.keys(next);
-                    if (k2.length === 1 && k2[0].toLowerCase() === "item") {
-                        const lifted = liftItemListsDeep(next[k2[0]]);
-                        next = Array.isArray(lifted) ? lifted : (lifted == null ? [] : [lifted]);
-                    }
-                }
-
-                out[k] = next;
-            }
-            return out;
-        }
-
-        return node;
-    }
-
-    // Force certain keys to always be arrays (helps JSON/XML parity)
-    const ALWAYS_ARRAY_KEYS = new Set([
-        "contacts", "addresses", "kycdocuments",
-        "cards", "accounts", "flags", "loans", "fees", "transactions",
-        "openauthorizations", "recentsettlements"
-    ]);
-
-    function forceArraysDeep(node) {
-        if (node == null) return node;
-        if (Array.isArray(node)) return node.map(forceArraysDeep);
-
-        if (typeof node === "object") {
-            const out = {};
-            for (const [k, v] of Object.entries(node)) {
-                const keyNorm = String(k).toLowerCase();
-                let next = forceArraysDeep(v);
-
-                if (ALWAYS_ARRAY_KEYS.has(keyNorm) && next != null && !Array.isArray(next)) {
-                    next = [next];
-                }
-                out[k] = next;
-            }
-            return out;
-        }
-
-        return node;
-    }
-
-    function xmlLeafText(el) {
-        // Returns text content for a leaf element (trimmed)
-        return (el?.textContent ?? "").trim();
-    }
+    function xmlLeafText(el) { return (el?.textContent ?? "").trim(); }
 
     function xmlElementToReportValue(el) {
         if (!el) return null;
-
         const childElements = Array.from(el.children || []);
 
-        // Leaf => scalar
-        if (childElements.length === 0) {
-            const t = xmlLeafText(el);
-            return t;
-        }
+        if (childElements.length === 0) return xmlLeafText(el);
 
-        // If all children are <item> => array list
         const allItem = childElements.every(c => c.tagName.toLowerCase() === "item");
-        if (allItem) {
-            return childElements.map(itemEl => xmlElementToReportValue(itemEl));
-        }
+        if (allItem) return childElements.map(itemEl => xmlElementToReportValue(itemEl));
 
-        // Normal object: group children by tagName
         const obj = {};
         for (const c of childElements) {
             const key = c.tagName;
             const val = xmlElementToReportValue(c);
-
             if (obj[key] === undefined) obj[key] = val;
             else if (Array.isArray(obj[key])) obj[key].push(val);
             else obj[key] = [obj[key], val];
         }
 
-        // If object is exactly { item: [...] } => lift it
         const keys = Object.keys(obj);
         if (keys.length === 1 && keys[0].toLowerCase() === "item") {
             const lifted = obj[keys[0]];
             return Array.isArray(lifted) ? lifted : (lifted == null ? [] : [lifted]);
         }
-
         return obj;
     }
 
@@ -385,33 +279,22 @@
 
         const modulesNode = doc.querySelector("Modules");
         if (!modulesNode) {
-            // fallback: whole doc as one module
             const root = doc.documentElement;
             return { modules: { [root.tagName]: xmlElementToReportValue(root) } };
         }
 
         const modules = {};
         const moduleEls = Array.from(modulesNode.children || []);
-
         for (const modEl of moduleEls) {
             const moduleName = modEl.tagName;
-
-            // Prefer <payload>, otherwise use module element itself
             const payloadEl = modEl.querySelector(":scope > payload") || modEl;
-
-            // Convert payload to JS value
             let payloadVal = xmlElementToReportValue(payloadEl);
 
-            // IMPORTANT: If payloadVal is { accounts: "" } from <accounts />, make it []
-            // (empty container tags should not become fake scalars)
             if (payloadVal && typeof payloadVal === "object" && !Array.isArray(payloadVal)) {
                 for (const [k, v] of Object.entries(payloadVal)) {
-                    if (typeof v === "string" && v.trim() === "") {
-                        payloadVal[k] = [];
-                    }
+                    if (typeof v === "string" && v.trim() === "") payloadVal[k] = [];
                 }
             }
-
             modules[moduleName] = payloadVal;
         }
 
@@ -419,7 +302,7 @@
     }
 
     // -----------------------------
-    // Rendering (PDF-like tables)
+    // Rendering
     // -----------------------------
     function h(tag, className, text) {
         const n = document.createElement(tag);
@@ -490,7 +373,7 @@
         for (const r of norm) {
             for (const [k, v] of Object.entries(r)) {
                 if (isScalar(v)) colSet.add(k);
-                else if (v != null) colSet.add(k); // complex columns become counts
+                else if (v != null) colSet.add(k);
             }
         }
         const cols = Array.from(colSet).slice(0, 14);
@@ -513,10 +396,8 @@
             cols.forEach((k) => {
                 const td = document.createElement("td");
                 const v = r[k];
-
                 if (isScalar(v)) td.textContent = v == null ? "" : String(v);
                 else td.textContent = compactValue(v);
-
                 tr.appendChild(td);
             });
             tbody.appendChild(tr);
@@ -556,7 +437,6 @@
                 const lk = String(k || "").toLowerCase();
                 if (lk === "summary" || lk === "overview") continue;
                 if (isScalar(v) || isEmptyVal(v)) continue;
-
                 renderAny(k, v, block);
             }
 
@@ -705,6 +585,76 @@
     }
 
     // -----------------------------
+    // Customers list (EMPLOYEE only)
+    // -----------------------------
+    function renderCustomerSelect(items) {
+        if (!elCustomerSelect) return;
+
+        if (!Array.isArray(items) || items.length === 0) {
+            elCustomerSelect.innerHTML = "";
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "No customers in this page";
+            elCustomerSelect.appendChild(opt);
+            return;
+        }
+
+        const prevValue = String(elCustomerSelect.value || "");
+
+        elCustomerSelect.innerHTML = "";
+        const ph = document.createElement("option");
+        ph.value = "";
+        ph.textContent = "Select a customer...";
+        elCustomerSelect.appendChild(ph);
+
+        for (const c of items) {
+            const cid = c.customer_id != null ? String(c.customer_id) : "";
+            const first = (c.first_name ?? "").toString().trim();
+            const last = (c.last_name ?? "").toString().trim();
+            const labelName = `${last} ${first}`.trim();
+            const label = labelName ? `${cid} — ${labelName}` : cid;
+
+            const opt = document.createElement("option");
+            opt.value = cid;
+            opt.textContent = label;
+            elCustomerSelect.appendChild(opt);
+        }
+
+        if (prevValue) elCustomerSelect.value = prevValue;
+    }
+
+    function updatePagerButtons() {
+        if (elPrevCustomersBtn) elPrevCustomersBtn.disabled = customersOffset <= 0;
+        if (elNextCustomersBtn) elNextCustomersBtn.disabled = lastPageSize < PAGE_LIMIT;
+    }
+
+    async function loadCustomersPage(offset) {
+        setError("");
+        setStatus("Loading customers list...");
+
+        try {
+            const res = await apiFetch(`/customers?limit=${PAGE_LIMIT}&offset=${offset}`);
+            const data = await res.json().catch(() => ({}));
+            const items = Array.isArray(data.items) ? data.items : [];
+            lastPageSize = items.length;
+            customersOffset = offset;
+
+            renderCustomerSelect(items);
+            updatePagerButtons();
+
+            setStatus(`Customers loaded: ${items.length} (offset ${customersOffset}). Select one and click Load Report.`);
+        } catch (e) {
+            // ✅ This is the important fix: show real backend error instead of pretending 0 customers
+            lastPageSize = 0;
+            customersOffset = offset;
+            renderCustomerSelect([]);
+            updatePagerButtons();
+            setStatus("");
+            setError(String(e));
+        }
+    }
+
+    // -----------------------------
     // Loading
     // -----------------------------
     async function loadCustomerListOrSelf() {
@@ -723,130 +673,42 @@
 
         if (user.role === "CUSTOMER") {
             if (elCustomerSelect) elCustomerSelect.style.display = "none";
+            if (elPrevCustomersBtn) elPrevCustomersBtn.style.display = "none";
+            if (elNextCustomersBtn) elNextCustomersBtn.style.display = "none";
             if (elReloadBtn) elReloadBtn.style.display = "none";
 
-            const res = await apiFetch("/customer/reports");
-            const rows = await res.json();
+            try {
+                const res = await apiFetch("/customer/reports");
+                const rows = await res.json();
 
-            if (!Array.isArray(rows) || rows.length === 0) {
-                currentReport = null;
-                setStatus("");
-                setError("No reports found for your customer.");
+                if (!Array.isArray(rows) || rows.length === 0) {
+                    currentReport = null;
+                    setStatus("");
+                    setError("No reports found for your customer.");
+                    render();
+                    return;
+                }
+
+                currentReport = extractReport(rows[0]);
+                setStatus("Loaded your latest report.");
                 render();
-                return;
+            } catch (e) {
+                setStatus("");
+                setError(String(e));
             }
-
-            currentReport = extractReport(rows[0]);
-            setStatus("Loaded your latest report.");
-            render();
             return;
         }
 
-        
-        // EMPLOYEE/ADMIN:
-        // Do NOT bulk-load 100K customers into a <select> (it freezes the UI and causes the "black box").
-        // Instead we keep a hidden customerSelect (selected customer_id) and use server-side search.
-        if (elCustomerSelect) elCustomerSelect.value = "";
+        // EMPLOYEE / ADMIN:
+        if (elCustomerSelect) elCustomerSelect.style.display = "";
+        if (elPrevCustomersBtn) elPrevCustomersBtn.style.display = "";
+        if (elNextCustomersBtn) elNextCustomersBtn.style.display = "";
         if (elReloadBtn) elReloadBtn.style.display = "";
 
-        if (elCustomerSearchInput) {
-            elCustomerSearchInput.value = "";
-            elCustomerSearchInput.placeholder = "Search (Tier, name, surname, ID)…";
-        }
-        if (elCustomerSearchResults) elCustomerSearchResults.innerHTML = "";
-
-        setStatus("Type to search a customer, pick one, then click Load Report.");
+        await loadCustomersPage(0);
     }
 
-    
-
-    // -----------------------------
-    // Employee customer search (server-side, debounced, cancellable)
-    // -----------------------------
-    let activeCustomerSearchController = null;
-
-    function debounce(fn, wait = 300) {
-        let t = null;
-        return (...args) => {
-            if (t) clearTimeout(t);
-            t = setTimeout(() => fn(...args), wait);
-        };
-    }
-
-    async function searchCustomersLight() {
-        const user = getStoredUser();
-        if (!user || !getToken()) {
-            logoutToLogin();
-            return;
-        }
-        if (user.role === "CUSTOMER") return; // customers don't search others
-
-        if (!elCustomerSearchInput || !elCustomerSearchResults) return;
-
-        const raw = (elCustomerSearchInput.value || "").trim();
-        if (!raw) {
-            elCustomerSearchResults.innerHTML = "";
-            return;
-        }
-
-        // Cancel previous request
-        if (activeCustomerSearchController) activeCustomerSearchController.abort();
-        activeCustomerSearchController = new AbortController();
-
-        const params = new URLSearchParams();
-        // allow power users to do quick filters like: tier:High surname:Smith id:123
-        // but keep it simple: we send raw as q, server will match id/name/surname/tier where available
-        params.set("q", raw);
-        params.set("limit", "25");
-        params.set("offset", "0");
-
-        try {
-            const res = await apiFetch(`/customers/search?${params.toString()}`, {
-                signal: activeCustomerSearchController.signal,
-            });
-            const data = await res.json();
-            const items = (data && data.items) ? data.items : [];
-
-            if (!items.length) {
-                elCustomerSearchResults.innerHTML = '<div class="ecs-muted">No matches.</div>';
-                return;
-            }
-
-            elCustomerSearchResults.innerHTML = items
-                .map((c) => {
-                    const cid = c.customer_id ?? "";
-                    const nm = [c.surname, c.name].filter(Boolean).join(" ").trim();
-                    const tier = c.tier ? ` • Tier: ${escapeHtml(String(c.tier))}` : "";
-                    return `
-                        <button class="ecs-result-item" data-cid="${escapeHtml(String(cid))}">
-                            <div class="ecs-result-main">
-                                <div class="ecs-result-title">${escapeHtml(nm || String(cid))}</div>
-                                <div class="ecs-result-sub">ID: ${escapeHtml(String(cid))}${tier}</div>
-                            </div>
-                        </button>
-                    `;
-                })
-                .join("");
-
-            elCustomerSearchResults.querySelectorAll("[data-cid]").forEach((btn) => {
-                btn.addEventListener("click", () => {
-                    const cid = btn.getAttribute("data-cid");
-                    if (elCustomerSelect) elCustomerSelect.value = cid;
-                    setStatus(`Selected customer_id=${cid}. Click Load Report.`);
-                    // collapse results (optional)
-                    elCustomerSearchResults.innerHTML = "";
-                    if (elCustomerSearchInput) elCustomerSearchInput.value = cid;
-                });
-            });
-        } catch (err) {
-            if (err && err.name === "AbortError") return;
-            elCustomerSearchResults.innerHTML = `<div class="ecs-error">Search failed: ${escapeHtml(String(err))}</div>`;
-        }
-    }
-
-    const searchCustomersLightDebounced = debounce(searchCustomersLight, 300);
-
-async function loadSelectedCustomerReport() {
+    async function loadSelectedCustomerReport() {
         setError("");
         setStatus("Loading report...");
 
@@ -868,12 +730,16 @@ async function loadSelectedCustomerReport() {
             return;
         }
 
-        const res = await apiFetch(`/customers/${encodeURIComponent(customerId)}`);
-        const row = await res.json();
-
-        currentReport = extractReport(row);
-        setStatus(`Loaded report for customer_id=${customerId}.`);
-        render();
+        try {
+            const res = await apiFetch(`/customers/${encodeURIComponent(customerId)}`);
+            const row = await res.json();
+            currentReport = extractReport(row);
+            setStatus(`Loaded report for customer_id=${customerId}.`);
+            render();
+        } catch (e) {
+            setStatus("");
+            setError(String(e));
+        }
     }
 
     // -----------------------------
@@ -898,9 +764,18 @@ async function loadSelectedCustomerReport() {
             render();
         });
 
-        if (elReloadBtn) elReloadBtn.addEventListener("click", loadCustomerListOrSelf);
-        if (elCustomerSearchInput) elCustomerSearchInput.addEventListener("input", searchCustomersLightDebounced);
-        if (elCustomerSearchBtn) elCustomerSearchBtn.addEventListener("click", searchCustomersLight);
+        if (elReloadBtn) elReloadBtn.addEventListener("click", () => loadCustomersPage(customersOffset));
+
+        if (elPrevCustomersBtn) elPrevCustomersBtn.addEventListener("click", () => {
+            const nextOffset = Math.max(0, customersOffset - PAGE_LIMIT);
+            loadCustomersPage(nextOffset);
+        });
+
+        if (elNextCustomersBtn) elNextCustomersBtn.addEventListener("click", () => {
+            const nextOffset = customersOffset + PAGE_LIMIT;
+            loadCustomersPage(nextOffset);
+        });
+
         if (elLoadBtn) elLoadBtn.addEventListener("click", loadSelectedCustomerReport);
 
         if (elLogoutBtn) elLogoutBtn.addEventListener("click", logoutToLogin);

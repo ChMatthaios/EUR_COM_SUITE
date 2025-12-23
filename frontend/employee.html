@@ -32,12 +32,13 @@
 
             <section class="ecs-content">
                 <h1>Employee Portal</h1>
-                <p class="small">Operations view (reports, tools, upcoming dashboards).</p>
+                <p class="small">If this page fails, it will show the exact reason below.</p>
 
                 <div class="ecs-card">
                     <h3>Session</h3>
                     <div id="who" class="small"></div>
                     <div id="status" class="small" style="margin-top:8px;"></div>
+                    <div id="error" class="error" style="margin-top:10px; white-space:pre-wrap;"></div>
                 </div>
 
                 <div class="ecs-section">
@@ -45,30 +46,12 @@
                         <h3>Tools</h3>
                         <button id="btnGoViewer" class="btn btn-primary">Open Reports Viewer</button>
                         <p class="small" style="margin-top:10px;">
-                            Next: customer search, case management, commissions dashboard.
+                            Viewer loads customers via <code>/api/customers</code> (paginated), no tier logic.
                         </p>
                     </div>
                 </div>
 
-                
                 <div class="ecs-section">
-                    <div class="ecs-card">
-                        <h3>Customers — Balance Tier Split</h3>
-                        <p class="small">Employee-only grouping based on account balance tiers.</p>
-                        <div id="tierSplitStatus" class="small ecs-muted"></div>
-                        <div id="tierSplitTable" class="ecs-tablewrap"></div>
-                        <hr style="margin:14px 0; opacity:.3;" />
-                        <div class="ecs-searchbar">
-                            <select id="tierPick" class="ecs-compact"></select>
-                            <input id="tierStatusPick" class="ecs-compact" placeholder="status (optional)" />
-                            <input id="tierAccountTypePick" class="ecs-compact" placeholder="account_type (optional)" />
-                            <button id="btnLoadTierCustomers" class="btn">Load Customers</button>
-                        </div>
-                        <div id="tierCustomers" class="ecs-tablewrap" style="margin-top:10px;"></div>
-                    </div>
-                </div>
-
-<div class="ecs-section">
                     <div class="ecs-card">
                         <h3>Debug</h3>
                         <pre id="debug" class="code"
@@ -82,138 +65,12 @@
     <script>
         const API_BASE = "http://127.0.0.1:8000/api";
 
-        function token() { return localStorage.getItem("ecs_token"); }
+        const elWho = document.getElementById("who");
+        const elStatus = document.getElementById("status");
+        const elError = document.getElementById("error");
+        const elDebug = document.getElementById("debug");
 
-        function escapeHtml(s) {
-            return String(s ?? "")
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll('"', "&quot;")
-                .replaceAll("'", "&#039;");
-        }
-
-        async function apiFetch(path, options = {}) {
-            const res = await fetch(`${API_BASE}${path}`, {
-                ...options,
-                headers: {
-                    ...(options.headers || {}),
-                    Authorization: `Bearer ${token()}`,
-                },
-                cache: "no-store",
-            });
-            if (!res.ok) {
-                const t = await res.text();
-                throw new Error(t || `HTTP ${res.status}`);
-            }
-            return res;
-        }
-
-        function renderTierSplitTable(items) {
-            const host = document.getElementById("tierSplitTable");
-            if (!host) return;
-            if (!items || !items.length) {
-                host.innerHTML = '<div class="ecs-muted small">No data.</div>';
-                return;
-            }
-
-            // fill dropdown tiers
-            const tierPick = document.getElementById("tierPick");
-            if (tierPick) {
-                const tiers = Array.from(new Set(items.map(x => x.BalanceClassificatons))).filter(Boolean);
-                tierPick.innerHTML = tiers.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
-            }
-
-            host.innerHTML = `
-                <table class="ecs-table">
-                    <thead>
-                        <tr>
-                            <th>Balance Tier</th>
-                            <th>Status</th>
-                            <th>Account Type</th>
-                            <th>Customers</th>
-                            <th>Accounts</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${items.map(r => `
-                            <tr>
-                                <td>${escapeHtml(r.BalanceClassificatons)}</td>
-                                <td>${escapeHtml(r.status)}</td>
-                                <td>${escapeHtml(r.account_type)}</td>
-                                <td>${escapeHtml(r.Customers)}</td>
-                                <td>${escapeHtml(r.Accounts)}</td>
-                            </tr>
-                        `).join("")}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        async function loadBalanceTiers() {
-            const st = document.getElementById("tierSplitStatus");
-            if (st) st.textContent = "Loading tier split…";
-            const res = await apiFetch("/customers/balance-tiers");
-            const data = await res.json();
-            renderTierSplitTable(data.items || []);
-            if (st) st.textContent = "Loaded.";
-        }
-
-        async function loadTierCustomers() {
-            const out = document.getElementById("tierCustomers");
-            const tier = document.getElementById("tierPick")?.value || "";
-            const status = document.getElementById("tierStatusPick")?.value?.trim() || "";
-            const accountType = document.getElementById("tierAccountTypePick")?.value?.trim() || "";
-            if (!tier) return;
-
-            if (out) out.innerHTML = '<div class="ecs-muted small">Loading customers…</div>';
-
-            const params = new URLSearchParams();
-            params.set("tier", tier);
-            if (status) params.set("status", status);
-            if (accountType) params.set("account_type", accountType);
-            params.set("limit", "50");
-            params.set("offset", "0");
-
-            const res = await apiFetch(`/customers/by-balance-tier?${params.toString()}`);
-            const data = await res.json();
-            const items = data.items || [];
-
-            if (!items.length) {
-                if (out) out.innerHTML = '<div class="ecs-muted small">No customers found for this tier.</div>';
-                return;
-            }
-
-            if (out) {
-                out.innerHTML = `
-                    <table class="ecs-table">
-                        <thead>
-                            <tr>
-                                <th>Customer</th>
-                                <th>Account</th>
-                                <th>Status</th>
-                                <th>Account Type</th>
-                                <th>Balance</th>
-                                <th>Balance Tier</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${items.map(r => `
-                                <tr>
-                                    <td>${escapeHtml(r.customer_id)} — ${escapeHtml((r.surname || "") + " " + (r.name || ""))}</td>
-                                    <td>${escapeHtml(r.account_id)}</td>
-                                    <td>${escapeHtml(r.status)}</td>
-                                    <td>${escapeHtml(r.account_type)}</td>
-                                    <td>${escapeHtml(r.balance)}</td>
-                                    <td>${escapeHtml(r.BalanceClassificatons)}</td>
-                                </tr>
-                            `).join("")}
-                        </tbody>
-                    </table>
-                `;
-            }
-        }
-
+        function getToken() { return localStorage.getItem("ecs_token"); }
 
         function logout() {
             localStorage.removeItem("ecs_token");
@@ -221,31 +78,64 @@
             window.location.href = "login.html";
         }
 
-        async function load() {
-            const token = localStorage.getItem("ecs_token");
-            if (!token) return logout();
+        async function safeReadJson(res) {
+            try { return await res.json(); } catch { return null; }
+        }
 
-            const meRes = await fetch(`${API_BASE}/me`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+        async function loadMe() {
+            elError.textContent = "";
+            elStatus.textContent = "Checking session...";
 
-            if (!meRes.ok) return logout();
+            const t = getToken();
+            if (!t) {
+                elStatus.textContent = "";
+                elError.textContent = "No token found in localStorage (ecs_token). Redirecting to login...";
+                setTimeout(logout, 800);
+                return;
+            }
 
-            const me = await meRes.json();
+            let res;
+            try {
+                res = await fetch(`${API_BASE}/me`, {
+                    headers: { Authorization: `Bearer ${t}` },
+                    cache: "no-store"
+                });
+            } catch (e) {
+                // Αυτό είναι το πιο χρήσιμο για “Failed to fetch”
+                elStatus.textContent = "";
+                elError.textContent =
+                    "Failed to fetch /api/me.\n" +
+                    "- Is backend running on 127.0.0.1:8000?\n" +
+                    "- Are you opening this page via Live Server (http://127.0.0.1:5500/...) and not file:// ?\n\n" +
+                    "Error: " + String(e);
+                return;
+            }
 
-            // Guard: employees only
-            if (me.role === "CUSTOMER") {
+            const data = await safeReadJson(res);
+
+            if (!res.ok) {
+                const detail = data?.detail ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : JSON.stringify(data);
+                elStatus.textContent = "";
+                elError.textContent = `API ${res.status} ${res.statusText} on /api/me:\n${detail}`;
+
+                if (res.status === 401) {
+                    setTimeout(logout, 800);
+                }
+                return;
+            }
+
+            // store user
+            localStorage.setItem("ecs_user", JSON.stringify(data));
+
+            // guard role
+            if (data.role === "CUSTOMER") {
                 window.location.href = "customer.html";
                 return;
             }
 
-            document.getElementById("who").textContent = `Signed in as ${me.username} (${me.role})`;
-            document.getElementById("status").textContent = "Session OK.";
-            await loadBalanceTiers();
-
-            document.getElementById("btnLoadTierCustomers").addEventListener("click", loadTierCustomers);
-
-            document.getElementById("debug").textContent = JSON.stringify(me, null, 2);
+            elWho.textContent = `Signed in as ${data.username} (${data.role})`;
+            elStatus.textContent = "Session OK.";
+            elDebug.textContent = JSON.stringify(data, null, 2);
         }
 
         document.getElementById("btnLogout").addEventListener("click", logout);
@@ -253,9 +143,7 @@
             window.location.href = "viewer.html";
         });
 
-        load().catch(err => {
-            document.getElementById("status").textContent = "Error: " + String(err);
-        });
+        loadMe();
     </script>
 </body>
 

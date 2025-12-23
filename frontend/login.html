@@ -74,13 +74,19 @@
                     return;
                 }
 
-                // store token + user
-                localStorage.setItem("ecs_token", data.access_token);
-                localStorage.setItem("ecs_user", JSON.stringify(data.user));
+                // backend now returns: { access_token, token_type }
+                const token = data.access_token;
+                if (!token) {
+                    elStatus.textContent = "";
+                    elErr.textContent = "Login response missing access_token.";
+                    return;
+                }
 
-                // verify immediately
+                localStorage.setItem("ecs_token", token);
+
+                // fetch /me and store user
                 const meRes = await fetch(`${API_BASE}/me`, {
-                    headers: { Authorization: `Bearer ${data.access_token}` }
+                    headers: { Authorization: `Bearer ${token}` }
                 });
 
                 if (!meRes.ok) {
@@ -91,6 +97,8 @@
                 }
 
                 const me = await meRes.json();
+                localStorage.setItem("ecs_user", JSON.stringify(me));
+
                 elStatus.textContent = `Logged in as ${me.username} (${me.role})`;
 
                 // redirect by role
